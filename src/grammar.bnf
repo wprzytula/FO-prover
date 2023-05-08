@@ -1,0 +1,31 @@
+<input> ::= <phi> | <phi> '
+'
+<phi> ::= 'T' | 'F' |
+    'Rel' <whitespace_seq> <string> <whitespace_seq> <ts> |
+    'Not' <whitespace_seq> '(' <phi> ')' |
+    'And' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')' |
+    'Or' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi>')' |
+    'Implies' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')' |
+    'Iff' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')' |
+    'Exists' <whitespace_seq> <string> <whitespace_seq> '(' <phi> ')' |
+    'Forall' <whitespace_seq> <string> <whitespace_seq> '(' <phi> ')'
+
+<whitespace> ::= ' '
+<whitespace_seq> ::= <whitespace> | <whitespace> <whitespace_seq>
+<whitespace_seq_opt> ::= <whitespace_seq> | ''
+
+<string> ::= '"' <alphanumeric_seq> '"'
+
+<alphanumeric_seq> ::= <alphanumeric> | <alphanumeric> <alphanumeric_seq>
+
+<alphanumeric> ::= 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' |
+                   'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' |
+                   'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' |
+                   'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' |
+                   '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+
+<ts> ::= '[' <t_sec> ']'
+
+<t_sec> ::= '' | <t> | <t> ',' <whitespace_seq_opt> <t_sec>
+
+<t> ::= 'Var' <whitespace_seq> <string> | 'Fun' <whitespace_seq> <string> <whitespace_seq> <ts>
