@@ -1,14 +1,22 @@
 <input> ::= <phi> | <phi> '
 '
-<phi> ::= 'T' | 'F' |
-    'Rel' <whitespace_seq> <string> <whitespace_seq> <ts> |
-    'Not' <whitespace_seq> '(' <phi> ')' |
-    'And' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')' |
-    'Or' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi>')' |
-    'Implies' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')' |
-    'Iff' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')' |
-    'Exists' <whitespace_seq> <string> <whitespace_seq> '(' <phi> ')' |
-    'Forall' <whitespace_seq> <string> <whitespace_seq> '(' <phi> ')'
+<phi> ::= <Instant> | <LogOp> | <Rel> | <Quantifier>
+
+<Instant> ::= <T> | <F>
+<Rel> ::= 'Rel' <whitespace_seq> <string> <whitespace_seq> <ts>
+<LogOp> ::= <Not> | <BinLogOp>
+<BinLogOp> ::= <And> | <Or> | <Implies> | <Iff>
+<Quantifier> ::= <Exists> | <Forall>
+
+<T> ::= 'T'
+<F> ::= 'F'
+<Not> ::= 'Not' <whitespace_seq> '(' <phi> ')'
+<And> ::= 'And' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')'
+<Or> ::= 'Or' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi>')'
+<Implies> ::= 'Implies' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')'
+<Iff> ::= 'Iff' <whitespace_seq> '(' <phi> ')' <whitespace_seq> '(' <phi> ')'
+<Exists> ::= 'Exists' <whitespace_seq> <string> <whitespace_seq> '(' <phi> ')'
+<Forall> ::= 'Forall' <whitespace_seq> <string> <whitespace_seq> '(' <phi> ')'
 
 <whitespace> ::= ' '
 <whitespace_seq> ::= <whitespace> | <whitespace> <whitespace_seq>
@@ -24,8 +32,10 @@
                    'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' |
                    '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
 
-<ts> ::= '[' <t_sec> ']'
+<ts> ::= '[' <t_seq> ']'
 
-<t_sec> ::= '' | <t> | <t> ',' <whitespace_seq_opt> <t_sec>
+<t_seq> ::= '' | <t> | <t> ',' <whitespace_seq_opt> <t_seq>
 
-<t> ::= 'Var' <whitespace_seq> <string> | 'Fun' <whitespace_seq> <string> <whitespace_seq> <ts>
+<t> ::= <Var> | <Fun>
+<Var> ::= 'Var' <whitespace_seq> <string>
+<Fun> ::= 'Fun' <whitespace_seq> <string> <whitespace_seq> <ts>
