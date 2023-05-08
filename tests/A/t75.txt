@@ -1,0 +1,1 @@
+Forall "x" (Iff (Rel "FF" [Var "x",Fun "f" [Var "x"]]) (Exists "y" (And (Forall "z" (Implies (Rel "FF" [Var "z",Var "y"]) (Rel "FF" [Var "z",Fun "f" [Var "x"]]))) (Rel "FF" [Var "x",Var "y"]))))
