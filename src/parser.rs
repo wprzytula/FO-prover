@@ -1,9 +1,11 @@
-use anyhow::{anyhow, Context, Result};
-use bnf::Grammar;
+use anyhow::{Context, Result};
+use bnf::{Grammar, ParseTree};
+
+use crate::formula::Formula;
 
 static BNF_GRAMMAR: &str = include_str!("grammar.bnf");
 
-struct Parser {
+pub(crate) struct Parser {
     grammar: Grammar,
 }
 
@@ -13,23 +15,25 @@ impl Parser {
         Ok(Self { grammar })
     }
 
-    pub(crate) fn parse(&self, formula: &str) -> Result<()> {
-        let parse_tree = self
-            .grammar
+    pub(crate) fn parse_to_tree<'a>(&'a self, formula: &'a str) -> Result<ParseTree> {
+        self.grammar
             .parse_input(formula)
             .next()
-            .context(format!("Grammar could not parse input: {}", formula))?;
+            .context(format!("Grammar could not parse input: {}", formula))
+    }
 
-        Ok(())
+    pub(crate) fn parse<'a>(&'a self, formula: &'a str) -> Result<Formula> {
+        let parse_tree = self.parse_to_tree(formula)?;
+        Formula::parse_input(&parse_tree)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::read_dir, path::Path};
-
     use anyhow::Context;
     use bnf::Grammar;
+
+    use crate::tests::for_each_external_test;
 
     use super::Parser;
 
@@ -52,15 +56,18 @@ mod tests {
                    'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm' |
                    'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' |
                    '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
-".parse().expect("Unparsable grammar");
+"
+        .parse()
+        .expect("Unparsable grammar");
 
-        let input =
-            "\"Ala\"\n"
-        ;
+        let input = "\"Ala\"\n";
 
-        grammar.parse_input(input).next().context(format!("Could not parse input: {}", input)).unwrap();
+        grammar
+            .parse_input(input)
+            .next()
+            .context(format!("Could not parse input: {}", input))
+            .unwrap();
     }
-
 
     #[test]
     fn good_inputs_are_parsed() {
@@ -81,40 +88,12 @@ mod tests {
             ];
 
             for formula in formulas {
-                parser.parse(formula).unwrap();
+                parser.parse_to_tree(formula).unwrap();
             }
         }
 
-
-        let test_path = Path::new("/home/xps15/Studia/Sem8/Logika/Laby/Zal/FO-prover/tests");
-        assert!(test_path.exists());
-
-        let good_paths = ["A", "B", "C"];
-
-        let good = good_paths
-            .iter()
-            .map(|&path| {
-                let case_path = test_path.join(path);
-                read_dir(&case_path)
-                    .unwrap()
-                    .map(move |entry| (case_path.clone(), entry))
-            })
-            .flatten();
-
-        for (path, file) in good {
-            let file = file.unwrap();
-            println!("\nTest: {:?}", &file);
-            let os_name = file.file_name();
-            let name = os_name.to_str().unwrap();
-            if file.file_type().unwrap().is_file()
-            /* && name.ends_with(".lat")*/
-            {
-                let complete_filename = path.join(name);
-                let input = std::fs::read(complete_filename).unwrap();
-                let input_str = String::from_utf8(input).unwrap();
-                println!("Input:\n{}", &input_str);
-                parser.parse(&input_str).unwrap()
-            }
-        }
+        for_each_external_test(|input| {
+            parser.parse_to_tree(input).unwrap();
+        });
     }
 }
