@@ -1,4 +1,10 @@
-use std::{collections::HashSet, vec};
+use std::{
+    collections::{HashMap, HashSet},
+    vec,
+};
+
+#[cfg(test)]
+use quickcheck::Arbitrary;
 
 use crate::formula::{Instant, LogOp};
 
@@ -11,11 +17,26 @@ pub(crate) enum Proposition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
+#[allow(clippy::upper_case_acronyms)]
 pub(crate) struct CNF(Vec<CNFClause>);
+
+#[cfg(test)]
+impl Arbitrary for CNF {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self(Arbitrary::arbitrary(g))
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 pub(crate) struct CNFClause(Vec<Literal>);
+
+#[cfg(test)]
+impl Arbitrary for CNFClause {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self(Arbitrary::arbitrary(g))
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Literal {
@@ -41,6 +62,18 @@ impl PartialOrd for Literal {
 impl Ord for Literal {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         PartialOrd::partial_cmp(self, other).unwrap()
+    }
+}
+
+#[cfg(test)]
+impl Arbitrary for Literal {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let s = String::arbitrary(g);
+        if bool::arbitrary(g) {
+            Self::Pos(s)
+        } else {
+            Self::Neg(s)
+        }
     }
 }
 
@@ -77,7 +110,7 @@ impl CNF {
     }
 
     // A SAT clause is tautological if it contains some literal both positively and negatively.
-    /// Removes tautological clauses:
+    /// Removes tautological clauses.
     pub(crate) fn remove_tautologies(&mut self) {
         self.0
             .iter_mut()
@@ -89,7 +122,7 @@ impl CNF {
     // Consequently, we can remove all clauses containing p positively, and we can remove all occurrences
     // of the opposite literal ~p from all the other clauses. The same idea can be (dually) applied if L = ~p
     // is a one-literal clause.
-    /// Transforms a given CNF into an equisatisfiable one without one-literal clauses:
+    /// Transforms a given CNF into an equisatisfiable one without one-literal clauses.
     pub(crate) fn one_literal(&mut self) {
         loop {
             let mut single_literals = self
@@ -109,7 +142,7 @@ impl CNF {
                 let mut prev = iter.next().unwrap();
                 for literal in iter {
                     if literal.is_opposite(prev) {
-                        // The formula is unsatisfible, so return a trivial such.
+                        // The formula is unsatisfiable, so return a trivial such.
                         self.0.clear();
                         self.0.push(CNFClause(vec![]));
                         return;
@@ -139,6 +172,65 @@ impl CNF {
             }
         }
     }
+
+    // Affirmative-negative rule
+    // If a literal appears either only positively, or only negatively, then all clauses
+    // where it occurs can be removed, preserving satisfiability.
+    /// Removes all clauses containing literals which globally appear only positively, or only negatively.
+    pub(crate) fn affirmative_negative(&mut self) {
+        #[derive(Debug, Clone, Copy)]
+        enum Appears {
+            Positively,
+            Negatively,
+            Both,
+        }
+        impl Appears {
+            fn positively(&mut self) {
+                *self = match *self {
+                    Appears::Negatively => Appears::Both,
+                    a => a,
+                }
+            }
+            fn negatively(&mut self) {
+                *self = match *self {
+                    Appears::Positively => Appears::Both,
+                    a => a,
+                }
+            }
+            fn only_pos_or_only_neg(&self) -> bool {
+                matches!(self, Appears::Negatively | Appears::Positively)
+            }
+        }
+        let mut literals: HashMap<String, Appears> = HashMap::new();
+        loop {
+            literals.clear();
+            for clause in self.0.iter() {
+                for literal in clause.0.iter() {
+                    match literal {
+                        Literal::Pos(s) => literals
+                            .entry(s.clone())
+                            .and_modify(Appears::positively)
+                            .or_insert(Appears::Positively),
+                        Literal::Neg(s) => literals
+                            .entry(s.clone())
+                            .and_modify(Appears::negatively)
+                            .or_insert(Appears::Negatively),
+                    };
+                }
+            }
+            if !literals.values().any(Appears::only_pos_or_only_neg) {
+                // Can no longer apply this rule.
+                return;
+            }
+
+            self.0.retain(|clause| {
+                clause
+                    .0
+                    .iter()
+                    .all(|literal| !literals.get(literal.var()).unwrap().only_pos_or_only_neg())
+            })
+        }
+    }
 }
 
 impl CNFClause {
@@ -157,12 +249,10 @@ impl CNFClause {
             last_pos: &Option<String>,
             last_neg: &Option<String>,
         ) -> bool {
-            for last in [last_pos, last_neg] {
-                if let Some(old) = last {
-                    assert!(old <= new);
-                    if old < new {
-                        return true;
-                    }
+            for old in [last_pos, last_neg].into_iter().flatten() {
+                assert!(old <= new);
+                if old < new {
+                    return true;
                 }
             }
             false
@@ -363,5 +453,27 @@ mod tests {
             let expected = CNF(expected);
             assert_eq!(cnf, expected);
         }
+    }
+
+    impl CNF {
+        fn all_literals_both_pos_and_neg(&self) -> bool {
+            let mut negs = HashSet::new();
+            let mut poss = HashSet::new();
+            for clause in self.0.iter() {
+                for literal in clause.0.iter() {
+                    match literal {
+                        Literal::Pos(s) => poss.insert(s),
+                        Literal::Neg(s) => negs.insert(s),
+                    };
+                }
+            }
+            negs.len() == poss.len() && negs.iter().all(|literal| poss.contains(literal))
+        }
+    }
+
+    #[quickcheck]
+    fn test_affirmative_negative(mut cnf: CNF) -> bool {
+        cnf.affirmative_negative();
+        cnf.all_literals_both_pos_and_neg()
     }
 }

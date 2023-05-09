@@ -1,3 +1,9 @@
+#[cfg(test)]
+extern crate quickcheck;
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck_macros;
+
 use anyhow::Result;
 use parser::Parser;
 
