@@ -1,0 +1,367 @@
+use std::{collections::HashSet, vec};
+
+use crate::formula::{Instant, LogOp};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Proposition {
+    Instant(Instant),
+    LogOp(LogOp),
+    Var(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+pub(crate) struct CNF(Vec<CNFClause>);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+pub(crate) struct CNFClause(Vec<Literal>);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) enum Literal {
+    Pos(String),
+    Neg(String),
+}
+
+impl PartialOrd for Literal {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(match Ord::cmp(self.var(), other.var()) {
+            std::cmp::Ordering::Equal => match (self, other) {
+                (Literal::Pos(_), Literal::Pos(_)) | (Literal::Neg(_), Literal::Neg(_)) => {
+                    std::cmp::Ordering::Equal
+                }
+                (Literal::Pos(_), Literal::Neg(_)) => std::cmp::Ordering::Less,
+                (Literal::Neg(_), Literal::Pos(_)) => std::cmp::Ordering::Greater,
+            },
+            otherwise => otherwise,
+        })
+    }
+}
+
+impl Ord for Literal {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        PartialOrd::partial_cmp(self, other).unwrap()
+    }
+}
+
+impl Literal {
+    pub(crate) fn is_opposite(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Literal::Neg(_), Literal::Neg(_)) | (Literal::Pos(_), Literal::Pos(_)) => false,
+            (Literal::Pos(s1), Literal::Neg(s2)) | (Literal::Neg(s1), Literal::Pos(s2)) => s1 == s2,
+        }
+    }
+
+    pub(crate) fn make_opposite(&mut self) {
+        *self = match self {
+            Literal::Pos(s) => Literal::Neg(std::mem::take(s)),
+            Literal::Neg(s) => Literal::Pos(std::mem::take(s)),
+        }
+    }
+    pub(crate) fn into_var(self) -> String {
+        match self {
+            Literal::Pos(s) | Literal::Neg(s) => s,
+        }
+    }
+    pub(crate) fn var(&self) -> &String {
+        match self {
+            Literal::Pos(s) | Literal::Neg(s) => s,
+        }
+    }
+}
+
+impl CNF {
+    #[allow(non_snake_case)]
+    pub(crate) fn ECNF(prop: &Proposition) -> Self {
+        todo!()
+    }
+
+    // A SAT clause is tautological if it contains some literal both positively and negatively.
+    /// Removes tautological clauses:
+    pub(crate) fn remove_tautologies(&mut self) {
+        self.0
+            .iter_mut()
+            .for_each(|clause| clause.remove_tautologies());
+    }
+
+    // A one-literal clause is a clause containing only one literal L. If a CNF contains a one-literal clause L,
+    // say a positive literal L = p, then p must necessarily be true in any satisfying assignment (if any exists).
+    // Consequently, we can remove all clauses containing p positively, and we can remove all occurrences
+    // of the opposite literal ~p from all the other clauses. The same idea can be (dually) applied if L = ~p
+    // is a one-literal clause.
+    /// Transforms a given CNF into an equisatisfiable one without one-literal clauses:
+    pub(crate) fn one_literal(&mut self) {
+        loop {
+            let mut single_literals = self
+                .0
+                .iter()
+                .filter_map(CNFClause::one_literal_clause)
+                .cloned()
+                .collect::<Vec<_>>();
+
+            if single_literals.is_empty() {
+                return; // No more applications of the one literal rule possible.
+            }
+            single_literals.sort();
+            {
+                // check for contradicting single literal clauses
+                let mut iter = single_literals.iter();
+                let mut prev = iter.next().unwrap();
+                for literal in iter {
+                    if literal.is_opposite(prev) {
+                        // The formula is unsatisfible, so return a trivial such.
+                        self.0.clear();
+                        self.0.push(CNFClause(vec![]));
+                        return;
+                    }
+                    prev = literal;
+                }
+            }
+
+            // Remove clauses containing literals that must be true.
+            self.0.retain(|clause| {
+                clause
+                    .0
+                    .iter()
+                    .all(|literal| single_literals.binary_search(literal).is_err())
+            });
+
+            let negated_single_literals = {
+                single_literals.iter_mut().for_each(Literal::make_opposite);
+                single_literals
+            };
+
+            // Remove literals that must be false.
+            for clause in self.0.iter_mut() {
+                clause
+                    .0
+                    .retain(|literal| negated_single_literals.binary_search(literal).is_err())
+            }
+        }
+    }
+}
+
+impl CNFClause {
+    fn sort(&mut self) {
+        self.0.sort_unstable();
+    }
+
+    fn remove_tautologies(&mut self) {
+        self.sort();
+        let mut nubbed = Vec::new();
+        let mut last_pos: Option<String> = None;
+        let mut last_neg: Option<String> = None;
+
+        fn should_flush(
+            new: &String,
+            last_pos: &Option<String>,
+            last_neg: &Option<String>,
+        ) -> bool {
+            for last in [last_pos, last_neg] {
+                if let Some(old) = last {
+                    assert!(old <= new);
+                    if old < new {
+                        return true;
+                    }
+                }
+            }
+            false
+        }
+
+        fn flush(
+            nubbed: &mut Vec<Literal>,
+            last_pos: &mut Option<String>,
+            last_neg: &mut Option<String>,
+        ) {
+            match (last_pos.take(), last_neg.take()) {
+                (None, None) => (),
+                (None, Some(neg)) => nubbed.push(Literal::Neg(neg)),
+                (Some(pos), None) => nubbed.push(Literal::Pos(pos)),
+                (Some(pos), Some(neg)) => match Ord::cmp(&pos, &neg) {
+                    std::cmp::Ordering::Equal => {
+                        // removed tautological literal
+                    }
+                    std::cmp::Ordering::Less => {
+                        nubbed.push(Literal::Pos(pos));
+                        nubbed.push(Literal::Neg(neg));
+                    }
+                    std::cmp::Ordering::Greater => {
+                        nubbed.push(Literal::Neg(neg));
+                        nubbed.push(Literal::Pos(pos));
+                    }
+                },
+            }
+        }
+
+        for name in self.0.drain(..) {
+            let var = name.var();
+            if should_flush(var, &last_pos, &last_neg) {
+                flush(&mut nubbed, &mut last_pos, &mut last_neg);
+            }
+            match name {
+                Literal::Pos(s) => {
+                    if last_pos.is_none() {
+                        last_pos = Some(s);
+                    }
+                }
+                Literal::Neg(s) => {
+                    if last_neg.is_none() {
+                        last_neg = Some(s);
+                    }
+                }
+            }
+        }
+        flush(&mut nubbed, &mut last_pos, &mut last_neg);
+        std::mem::swap(&mut nubbed, &mut self.0);
+    }
+
+    fn one_literal_clause(&self) -> Option<&Literal> {
+        (self.0.len() == 1).then(|| &self.0[0])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_literal_order() {
+        let tests = [(
+            vec![
+                Literal::Pos("x".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Pos("x".to_owned()),
+                Literal::Neg("z".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Neg("x".to_owned()),
+            ],
+            vec![
+                Literal::Pos("x".to_owned()),
+                Literal::Pos("x".to_owned()),
+                Literal::Neg("x".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Neg("z".to_owned()),
+            ],
+        )];
+        for (test, expected) in tests {
+            let mut clause = CNFClause(test);
+            let expected = CNFClause(expected);
+            clause.sort();
+            assert_eq!(clause, expected);
+        }
+    }
+
+    #[test]
+    fn test_remove_tautologies() {
+        let tests = [(
+            vec![
+                Literal::Pos("x".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Pos("x".to_owned()),
+                Literal::Neg("z".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Neg("x".to_owned()),
+            ],
+            vec![Literal::Pos("y".to_owned()), Literal::Neg("z".to_owned())],
+        )];
+        for (test, expected) in tests {
+            let mut clause = CNFClause(test);
+            let expected = CNFClause(expected);
+            clause.remove_tautologies();
+            assert_eq!(clause, expected);
+        }
+    }
+
+    #[test]
+    fn test_one_literal() {
+        let tests = [
+            (
+                // contradictory one
+                vec![
+                    CNFClause(vec![Literal::Pos("x".to_owned())]),
+                    CNFClause(vec![
+                        Literal::Pos("x".to_owned()),
+                        Literal::Pos("h".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("x".to_owned()),
+                        Literal::Pos("y".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                        Literal::Neg("x".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Pos("w".to_owned()),
+                        Literal::Neg("g".to_owned()),
+                    ]),
+                    CNFClause(vec![Literal::Pos("z".to_owned())]),
+                    CNFClause(vec![Literal::Pos("z".to_owned())]),
+                ],
+                vec![CNFClause(vec![])],
+            ),
+            (
+                // All the clauses will disappear
+                vec![
+                    CNFClause(vec![Literal::Pos("x".to_owned())]),
+                    CNFClause(vec![
+                        Literal::Pos("x".to_owned()),
+                        Literal::Pos("h".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("x".to_owned()),
+                        Literal::Pos("y".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                        Literal::Neg("x".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Pos("w".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                    ]),
+                ],
+                vec![],
+            ),
+            (
+                vec![
+                    CNFClause(vec![Literal::Pos("x".to_owned())]),
+                    CNFClause(vec![
+                        Literal::Pos("x".to_owned()),
+                        Literal::Pos("h".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("x".to_owned()),
+                        Literal::Pos("y".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                        Literal::Neg("x".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Pos("z".to_owned()),
+                        Literal::Pos("w".to_owned()),
+                        Literal::Pos("g".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                    ]),
+                ],
+                vec![CNFClause(vec![
+                    Literal::Pos("w".to_owned()),
+                    Literal::Pos("g".to_owned()),
+                ])],
+            ),
+        ];
+        for (test, expected) in tests {
+            let mut cnf = CNF(test);
+            cnf.one_literal();
+            let expected = CNF(expected);
+            assert_eq!(cnf, expected);
+        }
+    }
+}

@@ -1,8 +1,10 @@
 use anyhow::Result;
 use parser::Parser;
 
-mod formula;
-mod parser;
+pub(crate) mod formula;
+pub(crate) mod parser;
+pub(crate) mod proposition;
+pub(crate) mod sat_solver;
 
 fn main() -> Result<()> {
     let parser = Parser::new()?;
