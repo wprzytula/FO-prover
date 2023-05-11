@@ -1,4 +1,8 @@
-use std::{collections::HashMap, vec};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Write},
+    vec,
+};
 
 use crate::formula::{Instant, LogOp};
 
@@ -14,14 +18,55 @@ pub(crate) enum Proposition {
 #[allow(clippy::upper_case_acronyms)]
 pub(crate) struct CNF(pub(crate) Vec<CNFClause>);
 
+impl Display for CNF {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char('[')?;
+        let mut iter = self.0.iter();
+        if let Some(clause) = iter.next() {
+            clause.fmt(f)?;
+        }
+        for clause in iter {
+            f.write_str(" and ")?;
+            clause.fmt(f)?;
+        }
+        f.write_char(']')?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 pub(crate) struct CNFClause(pub(crate) Vec<Literal>);
+
+impl Display for CNFClause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char('(')?;
+        let mut iter = self.0.iter();
+        if let Some(literal) = iter.next() {
+            literal.fmt(f)?;
+        }
+        for literal in iter {
+            f.write_str(" or ")?;
+            literal.fmt(f)?;
+        }
+        f.write_char(')')?;
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Literal {
     Pos(String),
     Neg(String),
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if matches!(self, Literal::Neg(_)) {
+            f.write_char('~')?;
+        }
+        f.write_str(self.var())
+    }
 }
 
 impl PartialOrd for Literal {
