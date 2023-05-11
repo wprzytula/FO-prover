@@ -136,7 +136,10 @@ impl CNF {
     // A SAT clause is tautological if it contains some literal both positively and negatively.
     /// Removes tautological clauses.
     pub(crate) fn remove_tautologies(&mut self) -> bool {
-        self.0.iter_mut().any(|clause| clause.remove_tautologies())
+        let clauses_before = self.0.len();
+        self.0.retain_mut(|clause| !clause.remove_tautologies());
+        let clauses_after = self.0.len();
+        clauses_before > clauses_after
     }
 
     // A one-literal clause is a clause containing only one literal L. If a CNF contains a one-literal clause L,
