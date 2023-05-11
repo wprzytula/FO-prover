@@ -562,7 +562,7 @@ mod tests {
     }
 
     #[quickcheck]
-    fn test_affirmative_negative(mut cnf: CNF) -> bool {
+    fn quicktest_affirmative_negative(mut cnf: CNF) -> bool {
         cnf.affirmative_negative();
         cnf.all_literals_both_pos_and_neg()
     }
