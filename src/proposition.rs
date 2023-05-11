@@ -124,10 +124,8 @@ impl CNF {
 
     // A SAT clause is tautological if it contains some literal both positively and negatively.
     /// Removes tautological clauses.
-    pub(crate) fn remove_tautologies(&mut self) {
-        self.0
-            .iter_mut()
-            .for_each(|clause| clause.remove_tautologies());
+    pub(crate) fn remove_tautologies(&mut self) -> bool {
+        self.0.iter_mut().any(|clause| clause.remove_tautologies())
     }
 
     // A one-literal clause is a clause containing only one literal L. If a CNF contains a one-literal clause L,
@@ -136,7 +134,8 @@ impl CNF {
     // of the opposite literal ~p from all the other clauses. The same idea can be (dually) applied if L = ~p
     // is a one-literal clause.
     /// Transforms a given CNF into an equisatisfiable one without one-literal clauses.
-    pub(crate) fn one_literal(&mut self) {
+    pub(crate) fn one_literal(&mut self) -> bool {
+        let mut applied = false;
         loop {
             let mut single_literals = self
                 .0
@@ -146,7 +145,9 @@ impl CNF {
                 .collect::<Vec<_>>();
 
             if single_literals.is_empty() {
-                return; // No more applications of the one literal rule possible.
+                return applied; // No more applications of the one literal rule possible.
+            } else {
+                applied = true;
             }
             single_literals.sort();
             {
@@ -158,7 +159,7 @@ impl CNF {
                         // The formula is unsatisfiable, so return a trivial such.
                         self.0.clear();
                         self.0.push(CNFClause(vec![]));
-                        return;
+                        return applied;
                     }
                     prev = literal;
                 }
@@ -190,7 +191,7 @@ impl CNF {
     // If a literal appears either only positively, or only negatively, then all clauses
     // where it occurs can be removed, preserving satisfiability.
     /// Removes all clauses containing literals which globally appear only positively, or only negatively.
-    pub(crate) fn affirmative_negative(&mut self) {
+    pub(crate) fn affirmative_negative(&mut self) -> bool {
         #[derive(Debug, Clone, Copy)]
         enum Appears {
             Positively,
@@ -215,6 +216,7 @@ impl CNF {
             }
         }
         let mut literals: HashMap<String, Appears> = HashMap::new();
+        let mut applied = false;
         loop {
             literals.clear();
             for clause in self.0.iter() {
@@ -233,7 +235,9 @@ impl CNF {
             }
             if !literals.values().any(Appears::only_pos_or_only_neg) {
                 // Can no longer apply this rule.
-                return;
+                return applied;
+            } else {
+                applied = true;
             }
 
             self.0.retain(|clause| {
@@ -251,8 +255,9 @@ impl CNFClause {
         self.0.sort_unstable();
     }
 
-    fn remove_tautologies(&mut self) {
+    fn remove_tautologies(&mut self) -> bool {
         self.sort();
+        let literals_before = self.0.len();
         let mut nubbed = Vec::new();
         let mut last_pos: Option<String> = None;
         let mut last_neg: Option<String> = None;
@@ -316,6 +321,10 @@ impl CNFClause {
         }
         flush(&mut nubbed, &mut last_pos, &mut last_neg);
         std::mem::swap(&mut nubbed, &mut self.0);
+
+        let literals_after = self.0.len();
+        assert!(literals_after <= literals_before);
+        literals_after < literals_before
     }
 
     fn one_literal_clause(&self) -> Option<&Literal> {
