@@ -334,7 +334,7 @@ impl CNFClause {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::{BTreeSet, HashSet};
 
     use super::*;
 
@@ -360,6 +360,15 @@ mod tests {
             } else {
                 Self::Neg(s)
             }
+        }
+    }
+
+    impl CNF {
+        pub(crate) fn into_set(self) -> BTreeSet<BTreeSet<Literal>> {
+            self.0
+                .into_iter()
+                .map(|clause| clause.0.into_iter().collect())
+                .collect()
         }
     }
 
