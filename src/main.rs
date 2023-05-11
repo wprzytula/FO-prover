@@ -5,7 +5,9 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 
 use anyhow::Result;
+use formula::Instant;
 use parser::Parser;
+use proposition::{Proposition, CNF};
 
 pub(crate) mod formula;
 pub(crate) mod parser;
@@ -21,6 +23,11 @@ fn main() -> Result<()> {
     };
 
     let _formula = parser.parse(&input)?;
+
+    let mut cnf = CNF::ECNF(&Proposition::Instant(Instant::F));
+    cnf.remove_tautologies();
+    cnf.one_literal();
+    cnf.affirmative_negative();
 
     Ok(())
 }
