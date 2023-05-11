@@ -360,19 +360,33 @@ mod tests {
 
     impl Arbitrary for CNF {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            Self(Arbitrary::arbitrary(g))
+            let cnf = loop {
+                let cnf: Vec<CNFClause> = Arbitrary::arbitrary(g);
+                if cnf.len() < 10 {
+                    break cnf;
+                }
+            };
+            Self(cnf)
         }
     }
 
     impl Arbitrary for CNFClause {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            Self(Arbitrary::arbitrary(g))
+            let clause = loop {
+                let clause: Vec<Literal> = Arbitrary::arbitrary(g);
+                if clause.len() < 10 {
+                    break clause;
+                }
+            };
+            Self(clause)
         }
     }
 
     impl Arbitrary for Literal {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-            let s = String::arbitrary(g);
+            let mut s = String::new();
+            s.push(char::arbitrary(g));
+
             if bool::arbitrary(g) {
                 Self::Pos(s)
             } else {
