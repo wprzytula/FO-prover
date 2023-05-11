@@ -1,10 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    vec,
-};
-
-#[cfg(test)]
-use quickcheck::Arbitrary;
+use std::{collections::HashMap, vec};
 
 use crate::formula::{Instant, LogOp};
 
@@ -18,25 +12,11 @@ pub(crate) enum Proposition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
 #[allow(clippy::upper_case_acronyms)]
-pub(crate) struct CNF(Vec<CNFClause>);
-
-#[cfg(test)]
-impl Arbitrary for CNF {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        Self(Arbitrary::arbitrary(g))
-    }
-}
+pub(crate) struct CNF(pub(crate) Vec<CNFClause>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
-pub(crate) struct CNFClause(Vec<Literal>);
-
-#[cfg(test)]
-impl Arbitrary for CNFClause {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        Self(Arbitrary::arbitrary(g))
-    }
-}
+pub(crate) struct CNFClause(pub(crate) Vec<Literal>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Literal {
@@ -62,18 +42,6 @@ impl PartialOrd for Literal {
 impl Ord for Literal {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         PartialOrd::partial_cmp(self, other).unwrap()
-    }
-}
-
-#[cfg(test)]
-impl Arbitrary for Literal {
-    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let s = String::arbitrary(g);
-        if bool::arbitrary(g) {
-            Self::Pos(s)
-        } else {
-            Self::Neg(s)
-        }
     }
 }
 
@@ -312,7 +280,34 @@ impl CNFClause {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
+
+    use quickcheck::Arbitrary;
+
+    impl Arbitrary for CNF {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            Self(Arbitrary::arbitrary(g))
+        }
+    }
+
+    impl Arbitrary for CNFClause {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            Self(Arbitrary::arbitrary(g))
+        }
+    }
+
+    impl Arbitrary for Literal {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            let s = String::arbitrary(g);
+            if bool::arbitrary(g) {
+                Self::Pos(s)
+            } else {
+                Self::Neg(s)
+            }
+        }
+    }
 
     #[test]
     fn test_literal_order() {
