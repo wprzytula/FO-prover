@@ -114,12 +114,23 @@ impl Literal {
             Literal::Pos(s) | Literal::Neg(s) => s,
         }
     }
+    pub(crate) fn has_var(&self, var: &str) -> bool {
+        self.var() == var
+    }
 }
 
 impl CNF {
     #[allow(non_snake_case)]
     pub(crate) fn ECNF(prop: &Proposition) -> Self {
         todo!()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub(crate) fn contains_empty_clause(&self) -> bool {
+        self.0.iter().any(CNFClause::is_empty)
     }
 
     // A SAT clause is tautological if it contains some literal both positively and negatively.
@@ -253,6 +264,10 @@ impl CNF {
 impl CNFClause {
     fn sort(&mut self) {
         self.0.sort_unstable();
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     fn remove_tautologies(&mut self) -> bool {
