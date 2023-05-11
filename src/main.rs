@@ -8,6 +8,7 @@ use anyhow::Result;
 use formula::Instant;
 use parser::Parser;
 use proposition::{Proposition, CNF};
+use sat_solver::SatSolver;
 
 pub(crate) mod formula;
 pub(crate) mod parser;
@@ -28,6 +29,9 @@ fn main() -> Result<()> {
     cnf.remove_tautologies();
     cnf.one_literal();
     cnf.affirmative_negative();
+
+    SatSolver::solve_by_truth_tables(&cnf);
+    SatSolver::solve_by_dp(cnf);
 
     Ok(())
 }
