@@ -154,7 +154,7 @@ impl NNF {
 impl Evaluable for NNF {
     fn evaluate<'a, 'b: 'a>(
         &'a self,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
         match self {
             NNF::Instant(i) => Ok(i.into_bool()),
@@ -197,7 +197,7 @@ impl NNFPropagated {
 impl Evaluable for NNFPropagated {
     fn evaluate<'a, 'b: 'a>(
         &'a self,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
         match self {
             NNFPropagated::Instant(i) => Ok(i.into_bool()),
@@ -232,7 +232,7 @@ impl NNFPropagatedInner {
 impl Evaluable for NNFPropagatedInner {
     fn evaluate<'a, 'b: 'a>(
         &'a self,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
         match self {
             Self::Var(k, s) => {

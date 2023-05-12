@@ -115,7 +115,7 @@ impl Literal {
 impl Evaluable for Literal {
     fn evaluate<'a, 'b: 'a>(
         &'a self,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
         let var_value = valuation.valuate(self.var())?;
         Ok(match self {
@@ -197,7 +197,7 @@ impl CNF {
 impl Evaluable for CNF {
     fn evaluate<'a, 'b: 'a>(
         &'a self,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
         self.0
             .iter()
@@ -223,7 +223,7 @@ impl CNFClause {
 impl Evaluable for CNFClause {
     fn evaluate<'a, 'b: 'a>(
         &'a self,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
         self.0
             .iter()

@@ -19,11 +19,11 @@ pub(crate) fn fresh_var(vars: &HashSet<String>) -> String {
 }
 
 // pub(crate) type Valuation<'a> = HashMap<&'a str, bool>;
-pub(crate) trait Valuation {
-    fn valuate<'a, 'b: 'a>(&'a self, var: &'b str) -> Result<bool, MissingValuation>;
+pub(crate) trait Valuation<'s>: std::fmt::Debug {
+    fn valuate<'v: 's>(&'s self, var: &'v str) -> Result<bool, MissingValuation>;
 }
-impl<'s> Valuation for HashMap<&'s str, bool> {
-    fn valuate<'a, 'b: 'a>(&'a self, var: &'b str) -> Result<bool, MissingValuation> {
+impl<'s> Valuation<'s> for HashMap<&'s str, bool> {
+    fn valuate<'v: 's>(&'s self, var: &'v str) -> Result<bool, MissingValuation> {
         self.get(var).copied().ok_or(MissingValuation(var))
     }
 }
@@ -31,10 +31,10 @@ impl<'s> Valuation for HashMap<&'s str, bool> {
 #[derive(Debug)]
 pub(crate) struct MissingValuation<'a>(pub(crate) &'a str);
 
-pub(crate) trait Evaluable {
+pub(crate) trait Evaluable: std::fmt::Debug {
     fn evaluate<'a, 'b: 'a>(
         &'a self,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>>;
 }
 
@@ -53,7 +53,7 @@ pub(crate) enum Proposition {
 impl Evaluable for Proposition {
     fn evaluate<'a, 'b: 'a>(
         &'a self,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
         match self {
             Proposition::Instant(i) => Ok(i.into_bool()),
@@ -104,7 +104,7 @@ mod tests {
     pub(crate) fn equivalent<'a, 'b: 'a>(
         phi: &'a impl Evaluable,
         psi: &'a impl Evaluable,
-        valuation: &'b impl Valuation,
+        valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
         Ok(phi.evaluate(valuation)? == psi.evaluate(valuation)?)
     }
