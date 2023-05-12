@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::proposition::{CNFClause, Literal, CNF};
+use crate::{
+    cnf::{CNFClause, Literal, CNF},
+    proposition::Valuation,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SolverJudgement {
@@ -8,36 +11,83 @@ pub(crate) enum SolverJudgement {
     Unsatisfiable,
 }
 
-type Valuation<'a> = HashMap<&'a str, bool>;
-
-impl Literal {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
-        let var_value = valuation
-            .get(self.var().as_str())
-            .copied()
-            .ok_or(MissingValuation(self.var()))?;
-        Ok(match self {
-            Literal::Pos(_) => var_value,
-            Literal::Neg(_) => !var_value,
-        })
-    }
-}
-
 impl CNFClause {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
-        self.0
-            .iter()
-            .map(|literal| literal.evaluate(valuation))
-            .try_fold(false, |acc, res| res.map(|val| acc || val))
-    }
-
     fn contains_literal_with_var(&self, p: &str) -> bool {
         self.0.iter().find(|literal| literal.var() == p).is_some()
     }
-}
 
-#[derive(Debug)]
-struct MissingValuation<'a>(&'a str);
+    fn remove_tautologies(&mut self) -> bool {
+        self.sort();
+        let literals_before = self.0.len();
+        let mut nubbed = Vec::new();
+        let mut last_pos: Option<String> = None;
+        let mut last_neg: Option<String> = None;
+
+        fn should_flush(
+            new: &String,
+            last_pos: &Option<String>,
+            last_neg: &Option<String>,
+        ) -> bool {
+            for old in [last_pos, last_neg].into_iter().flatten() {
+                assert!(old <= new);
+                if old < new {
+                    return true;
+                }
+            }
+            false
+        }
+
+        fn flush(
+            nubbed: &mut Vec<Literal>,
+            last_pos: &mut Option<String>,
+            last_neg: &mut Option<String>,
+        ) {
+            match (last_pos.take(), last_neg.take()) {
+                (None, None) => (),
+                (None, Some(neg)) => nubbed.push(Literal::Neg(neg)),
+                (Some(pos), None) => nubbed.push(Literal::Pos(pos)),
+                (Some(pos), Some(neg)) => match Ord::cmp(&pos, &neg) {
+                    std::cmp::Ordering::Equal => {
+                        // removed tautological literal
+                    }
+                    std::cmp::Ordering::Less => {
+                        nubbed.push(Literal::Pos(pos));
+                        nubbed.push(Literal::Neg(neg));
+                    }
+                    std::cmp::Ordering::Greater => {
+                        nubbed.push(Literal::Neg(neg));
+                        nubbed.push(Literal::Pos(pos));
+                    }
+                },
+            }
+        }
+
+        for name in self.0.drain(..) {
+            let var = name.var();
+            if should_flush(var, &last_pos, &last_neg) {
+                flush(&mut nubbed, &mut last_pos, &mut last_neg);
+            }
+            match name {
+                Literal::Pos(s) => {
+                    if last_pos.is_none() {
+                        last_pos = Some(s);
+                    }
+                }
+                Literal::Neg(s) => {
+                    if last_neg.is_none() {
+                        last_neg = Some(s);
+                    }
+                }
+            }
+        }
+        flush(&mut nubbed, &mut last_pos, &mut last_neg);
+        std::mem::swap(&mut nubbed, &mut self.0);
+
+        let literals_after = self.0.len();
+        assert!(literals_after <= literals_before);
+        literals_after < literals_before
+    }
+}
 
 impl CNF {
     fn all_literals<'a>(&'a self) -> impl Iterator<Item = &'a String> {
@@ -47,13 +97,6 @@ impl CNF {
             .flatten()
     }
 
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
-        self.0
-            .iter()
-            .map(|literal| literal.evaluate(valuation))
-            .try_fold(true, |acc, res| res.map(|val| acc && val))
-    }
-
     fn try_trivially_solve(&self) -> Option<SolverJudgement> {
         if self.is_empty() {
             Some(SolverJudgement::Satisfiable)
@@ -61,6 +104,136 @@ impl CNF {
             Some(SolverJudgement::Unsatisfiable)
         } else {
             None
+        }
+    }
+
+    // A SAT clause is tautological if it contains some literal both positively and negatively.
+    /// Removes tautological clauses.
+    pub(crate) fn remove_tautologies(&mut self) -> bool {
+        let clauses_before = self.0.len();
+        self.0.retain_mut(|clause| !clause.remove_tautologies());
+        let clauses_after = self.0.len();
+        clauses_before > clauses_after
+    }
+
+    // A one-literal clause is a clause containing only one literal L. If a CNF contains a one-literal clause L,
+    // say a positive literal L = p, then p must necessarily be true in any satisfying assignment (if any exists).
+    // Consequently, we can remove all clauses containing p positively, and we can remove all occurrences
+    // of the opposite literal ~p from all the other clauses. The same idea can be (dually) applied if L = ~p
+    // is a one-literal clause.
+    /// Transforms a given CNF into an equisatisfiable one without one-literal clauses.
+    fn one_literal(&mut self) -> bool {
+        let mut applied = false;
+        loop {
+            let mut single_literals = self
+                .0
+                .iter()
+                .filter_map(CNFClause::one_literal_clause)
+                .cloned()
+                .collect::<Vec<_>>();
+
+            if single_literals.is_empty() {
+                return applied; // No more applications of the one literal rule possible.
+            } else {
+                applied = true;
+            }
+            single_literals.sort();
+            {
+                // check for contradicting single literal clauses
+                let mut iter = single_literals.iter();
+                let mut prev = iter.next().unwrap();
+                for literal in iter {
+                    if literal.is_opposite(prev) {
+                        // The formula is unsatisfiable, so return a trivial such.
+                        self.0.clear();
+                        self.0.push(CNFClause(vec![]));
+                        return applied;
+                    }
+                    prev = literal;
+                }
+            }
+
+            // Remove clauses containing literals that must be true.
+            self.0.retain(|clause| {
+                clause
+                    .0
+                    .iter()
+                    .all(|literal| single_literals.binary_search(literal).is_err())
+            });
+
+            let negated_single_literals = {
+                single_literals.iter_mut().for_each(Literal::make_opposite);
+                single_literals
+            };
+
+            // Remove literals that must be false.
+            for clause in self.0.iter_mut() {
+                clause
+                    .0
+                    .retain(|literal| negated_single_literals.binary_search(literal).is_err())
+            }
+        }
+    }
+
+    // Affirmative-negative rule
+    // If a literal appears either only positively, or only negatively, then all clauses
+    // where it occurs can be removed, preserving satisfiability.
+    /// Removes all clauses containing literals which globally appear only positively, or only negatively.
+    fn affirmative_negative(&mut self) -> bool {
+        #[derive(Debug, Clone, Copy)]
+        enum Appears {
+            Positively,
+            Negatively,
+            Both,
+        }
+        impl Appears {
+            fn positively(&mut self) {
+                *self = match *self {
+                    Appears::Negatively => Appears::Both,
+                    a => a,
+                }
+            }
+            fn negatively(&mut self) {
+                *self = match *self {
+                    Appears::Positively => Appears::Both,
+                    a => a,
+                }
+            }
+            fn only_pos_or_only_neg(&self) -> bool {
+                matches!(self, Appears::Negatively | Appears::Positively)
+            }
+        }
+        let mut literals: HashMap<String, Appears> = HashMap::new();
+        let mut applied = false;
+        loop {
+            literals.clear();
+            for clause in self.0.iter() {
+                for literal in clause.0.iter() {
+                    match literal {
+                        Literal::Pos(s) => literals
+                            .entry(s.clone())
+                            .and_modify(Appears::positively)
+                            .or_insert(Appears::Positively),
+                        Literal::Neg(s) => literals
+                            .entry(s.clone())
+                            .and_modify(Appears::negatively)
+                            .or_insert(Appears::Negatively),
+                    };
+                }
+            }
+            if !literals.values().any(Appears::only_pos_or_only_neg) {
+                // Can no longer apply this rule.
+                return applied;
+            } else {
+                applied = true;
+            }
+
+            self.0.retain(|clause| {
+                clause
+                    .0
+                    .iter()
+                    .all(|literal| !literals.get(literal.var()).unwrap().only_pos_or_only_neg())
+            })
         }
     }
 
@@ -206,11 +379,176 @@ impl SatSolver {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use quickcheck::TestResult;
 
-    use crate::proposition::{CNFClause, Literal, CNF};
+    use crate::cnf::{CNFClause, Literal, CNF};
 
     use super::{SatSolver, SolverJudgement};
+
+    #[test]
+    fn test_literal_order() {
+        let tests = [(
+            vec![
+                Literal::Pos("x".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Pos("x".to_owned()),
+                Literal::Neg("z".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Neg("x".to_owned()),
+            ],
+            vec![
+                Literal::Pos("x".to_owned()),
+                Literal::Pos("x".to_owned()),
+                Literal::Neg("x".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Neg("z".to_owned()),
+            ],
+        )];
+        for (test, expected) in tests {
+            let mut clause = CNFClause(test);
+            let expected = CNFClause(expected);
+            clause.sort();
+            assert_eq!(clause, expected);
+        }
+    }
+
+    #[test]
+    fn test_remove_tautologies() {
+        let tests = [(
+            vec![
+                Literal::Pos("x".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Pos("x".to_owned()),
+                Literal::Neg("z".to_owned()),
+                Literal::Pos("y".to_owned()),
+                Literal::Neg("x".to_owned()),
+            ],
+            vec![Literal::Pos("y".to_owned()), Literal::Neg("z".to_owned())],
+        )];
+        for (test, expected) in tests {
+            let mut clause = CNFClause(test);
+            let expected = CNFClause(expected);
+            clause.remove_tautologies();
+            assert_eq!(clause, expected);
+        }
+    }
+
+    #[test]
+    fn test_one_literal() {
+        let tests = [
+            (
+                // contradictory one
+                vec![
+                    CNFClause(vec![Literal::Pos("x".to_owned())]),
+                    CNFClause(vec![
+                        Literal::Pos("x".to_owned()),
+                        Literal::Pos("h".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("x".to_owned()),
+                        Literal::Pos("y".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                        Literal::Neg("x".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Pos("w".to_owned()),
+                        Literal::Neg("g".to_owned()),
+                    ]),
+                    CNFClause(vec![Literal::Pos("z".to_owned())]),
+                    CNFClause(vec![Literal::Pos("z".to_owned())]),
+                ],
+                vec![CNFClause(vec![])],
+            ),
+            (
+                // All the clauses will disappear
+                vec![
+                    CNFClause(vec![Literal::Pos("x".to_owned())]),
+                    CNFClause(vec![
+                        Literal::Pos("x".to_owned()),
+                        Literal::Pos("h".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("x".to_owned()),
+                        Literal::Pos("y".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                        Literal::Neg("x".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Pos("w".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                    ]),
+                ],
+                vec![],
+            ),
+            (
+                vec![
+                    CNFClause(vec![Literal::Pos("x".to_owned())]),
+                    CNFClause(vec![
+                        Literal::Pos("x".to_owned()),
+                        Literal::Pos("h".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("x".to_owned()),
+                        Literal::Pos("y".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Neg("z".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                        Literal::Neg("x".to_owned()),
+                    ]),
+                    CNFClause(vec![
+                        Literal::Pos("z".to_owned()),
+                        Literal::Pos("w".to_owned()),
+                        Literal::Pos("g".to_owned()),
+                        Literal::Neg("y".to_owned()),
+                    ]),
+                ],
+                vec![CNFClause(vec![
+                    Literal::Pos("w".to_owned()),
+                    Literal::Pos("g".to_owned()),
+                ])],
+            ),
+        ];
+        for (test, expected) in tests {
+            let mut cnf = CNF(test);
+            cnf.one_literal();
+            let expected = CNF(expected);
+            assert_eq!(cnf, expected);
+        }
+    }
+
+    impl CNF {
+        fn all_literals_both_pos_and_neg(&self) -> bool {
+            let mut negs = HashSet::new();
+            let mut poss = HashSet::new();
+            for clause in self.0.iter() {
+                for literal in clause.0.iter() {
+                    match literal {
+                        Literal::Pos(s) => poss.insert(s),
+                        Literal::Neg(s) => negs.insert(s),
+                    };
+                }
+            }
+            negs.len() == poss.len() && negs.iter().all(|literal| poss.contains(literal))
+        }
+    }
+
+    #[quickcheck]
+    fn quicktest_affirmative_negative(mut cnf: CNF) -> bool {
+        cnf.affirmative_negative();
+        cnf.all_literals_both_pos_and_neg()
+    }
 
     #[test]
     fn best_var_is_chosen_for_resolution() {

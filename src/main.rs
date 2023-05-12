@@ -5,12 +5,15 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 
 use anyhow::Result;
+use cnf::CNF;
 use formula::Instant;
+use nnf::NNF;
 use parser::Parser;
-use proposition::{CNF, NNF};
 use sat_solver::SatSolver;
 
+pub(crate) mod cnf;
 pub(crate) mod formula;
+pub(crate) mod nnf;
 pub(crate) mod parser;
 pub(crate) mod proposition;
 pub(crate) mod sat_solver;
@@ -25,10 +28,7 @@ fn main() -> Result<()> {
 
     let _formula = parser.parse(&input)?;
 
-    let mut cnf = CNF::ECNF(NNF::Instant(Instant::F));
-    cnf.remove_tautologies();
-    cnf.one_literal();
-    cnf.affirmative_negative();
+    let cnf = CNF::ECNF(NNF::Instant(Instant::F));
 
     SatSolver::solve_by_truth_tables(&cnf);
     SatSolver::solve_by_dp(cnf);
