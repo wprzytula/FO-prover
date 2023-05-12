@@ -236,6 +236,11 @@ impl Evaluable for CNFClause {
 mod tests {
     use std::collections::BTreeSet;
 
+    use crate::{
+        nnf::NNF,
+        proposition::{tests::randomly_check_equivalence, Proposition},
+    };
+
     use super::*;
 
     use quickcheck::Arbitrary;
@@ -284,5 +289,14 @@ mod tests {
                 .map(|clause| clause.0.into_iter().collect())
                 .collect()
         }
+    }
+
+    #[test]
+    fn cnf_preserves_logical_equivalence() {
+        let prop = Proposition::example();
+        let nnf = NNF::new(prop);
+        let nnf_propagated = nnf.clone().propagate_constants();
+        let cnf = CNF::equivalent(&nnf_propagated);
+        assert!(randomly_check_equivalence(&nnf_propagated, &cnf));
     }
 }
