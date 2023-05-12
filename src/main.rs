@@ -25,7 +25,7 @@ fn main() -> Result<()> {
 
     let _formula = parser.parse(&input)?;
 
-    let mut cnf = CNF::ECNF(&NNF::Instant(Instant::F));
+    let mut cnf = CNF::ECNF(NNF::Instant(Instant::F));
     cnf.remove_tautologies();
     cnf.one_literal();
     cnf.affirmative_negative();
