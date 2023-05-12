@@ -151,6 +151,32 @@ impl NNF {
     }
 }
 
+impl Evaluable for NNF {
+    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+        match self {
+            NNF::Instant(i) => Ok(i.into_bool()),
+            NNF::Var(k, s) => {
+                let s_val = valuation
+                    .get(s.as_str())
+                    .copied()
+                    .ok_or(MissingValuation(s))?;
+                Ok(match k {
+                    NNFVarKind::Pos => s_val,
+                    NNFVarKind::Neg => !s_val,
+                })
+            }
+            NNF::LogOp { kind, phi, psi } => {
+                let val_phi = phi.evaluate(valuation)?;
+                let val_psi = psi.evaluate(valuation)?;
+                Ok(match kind {
+                    NNFLogOpKind::And => val_phi && val_psi,
+                    NNFLogOpKind::Or => val_phi || val_psi,
+                })
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NNFPropagated {
     Instant(Instant),
@@ -165,6 +191,15 @@ impl NNFPropagated {
             NNFPropagated::Inner(inner) => inner.vars(&mut set),
         };
         set
+    }
+}
+
+impl Evaluable for NNFPropagated {
+    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+        match self {
+            NNFPropagated::Instant(i) => Ok(i.into_bool()),
+            NNFPropagated::Inner(inner) => inner.evaluate(valuation),
+        }
     }
 }
 
@@ -188,6 +223,31 @@ impl NNFPropagatedInner {
                 set.insert(s);
             }
         };
+    }
+}
+
+impl Evaluable for NNFPropagatedInner {
+    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+        match self {
+            Self::Var(k, s) => {
+                let s_val = valuation
+                    .get(s.as_str())
+                    .copied()
+                    .ok_or(MissingValuation(s))?;
+                Ok(match k {
+                    NNFVarKind::Pos => s_val,
+                    NNFVarKind::Neg => !s_val,
+                })
+            }
+            Self::LogOp { kind, phi, psi } => {
+                let val_phi = phi.evaluate(valuation)?;
+                let val_psi = psi.evaluate(valuation)?;
+                Ok(match kind {
+                    NNFLogOpKind::And => val_phi && val_psi,
+                    NNFLogOpKind::Or => val_phi || val_psi,
+                })
+            }
+        }
     }
 }
 
