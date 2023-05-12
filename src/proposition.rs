@@ -39,6 +39,31 @@ pub(crate) enum Proposition {
     Var(String),
 }
 
+impl Evaluable for Proposition {
+    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+        match self {
+            Proposition::Instant(i) => Ok(i.into_bool()),
+            Proposition::Var(s) => valuation
+                .get(s.as_str())
+                .copied()
+                .ok_or(MissingValuation(s)),
+            Proposition::LogOp(log_op) => match log_op {
+                LogOp::Not(p) => p.evaluate(valuation).map(|b| !b),
+                LogOp::Bin(BinLogOp { kind, phi, psi }) => {
+                    let val_phi = phi.evaluate(valuation)?;
+                    let val_psi = psi.evaluate(valuation)?;
+                    Ok(match kind {
+                        BinLogOpKind::And => val_phi && val_psi,
+                        BinLogOpKind::Or => val_phi || val_psi,
+                        BinLogOpKind::Implies => !val_phi || val_psi,
+                        BinLogOpKind::Iff => val_phi == val_psi,
+                    })
+                }
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
