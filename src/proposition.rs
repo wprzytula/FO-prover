@@ -106,6 +106,14 @@ mod tests {
         psi: &'a impl Evaluable,
         valuation: &'b impl Valuation<'a>,
     ) -> Result<bool, MissingValuation<'a>> {
-        Ok(phi.evaluate(valuation)? == psi.evaluate(valuation)?)
+        let phi_val = phi.evaluate(valuation)?;
+        let psi_val = psi.evaluate(valuation)?;
+        let res = psi_val == phi_val;
+        println!(
+            "Evaluated:\nphi={:#?} to {}, \npsi={:#?} to {}\nin valuation: {:#?}",
+            phi, phi_val, psi, psi_val, valuation
+        );
+        Ok(res)
+    }
     }
 }
