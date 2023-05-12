@@ -7,7 +7,7 @@ extern crate quickcheck_macros;
 use anyhow::Result;
 use formula::Instant;
 use parser::Parser;
-use proposition::{Proposition, CNF};
+use proposition::{CNF, NNF};
 use sat_solver::SatSolver;
 
 pub(crate) mod formula;
@@ -25,7 +25,7 @@ fn main() -> Result<()> {
 
     let _formula = parser.parse(&input)?;
 
-    let mut cnf = CNF::ECNF(&Proposition::Instant(Instant::F));
+    let mut cnf = CNF::ECNF(&NNF::Instant(Instant::F));
     cnf.remove_tautologies();
     cnf.one_literal();
     cnf.affirmative_negative();

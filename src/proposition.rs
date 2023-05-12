@@ -4,7 +4,7 @@ use std::{
     vec,
 };
 
-use crate::formula::{BinLogOp, Instant, LogOp, Logic};
+use crate::formula::{BinLogOp, BinLogOpKind, Instant, LogOp, Logic};
 
 impl Logic for Proposition {}
 
@@ -16,6 +16,37 @@ pub(crate) enum Proposition {
     Instant(Instant),
     LogOp(PLogOp),
     Var(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NNF {
+    Instant(Instant),
+    LogOp {
+        kind: NNFLogOpKind,
+        phi: Box<Self>,
+        psi: Box<Self>,
+    },
+    Var(NNFVarKind, String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub(crate) enum NNFVarKind {
+    Pos,
+    Neg,
+}
+impl NNFLogOpKind {
+    pub(crate) fn opposite(self) -> Self {
+        match self {
+            NNFLogOpKind::And => NNFLogOpKind::Or,
+            NNFLogOpKind::Or => NNFLogOpKind::And,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub(crate) enum NNFLogOpKind {
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,7 +157,7 @@ impl Literal {
 
 impl CNF {
     #[allow(non_snake_case)]
-    pub(crate) fn ECNF(prop: &Proposition) -> Self {
+    pub(crate) fn ECNF(prop: &NNF) -> Self {
         todo!()
     }
 
