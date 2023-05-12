@@ -323,6 +323,59 @@ impl Literal {
 }
 
 impl CNF {
+    pub(crate) fn equivalent(propagated: &NNFPropagated) -> Self {
+        fn rec(nnf: &NNFPropagatedInner) -> Vec<CNFClause> {
+            match nnf {
+                NNFPropagatedInner::Var(kind, s) => vec![CNFClause(vec![match kind {
+                    NNFVarKind::Pos => Literal::Pos(s.clone()),
+                    NNFVarKind::Neg => Literal::Neg(s.clone()),
+                }])],
+                NNFPropagatedInner::LogOp { kind, phi, psi } => {
+                    let phi_vec = rec(phi);
+                    let psi_vec = rec(psi);
+                    match kind {
+                        // go (φ `And` ψ) = go φ ++ go ψ
+                        NNFLogOpKind::And => {
+                            let mut vec = phi_vec;
+                            vec.append(&mut rec(psi));
+                            vec
+                        }
+                        // go (φ `Or` ψ) = [as ++ bs | as <- go φ, bs <- go ψ]
+                        NNFLogOpKind::Or => phi_vec
+                            .iter()
+                            .map(|phi_clause| {
+                                psi_vec.iter().map(|psi_clause| {
+                                    CNFClause(
+                                        phi_clause
+                                            .0
+                                            .iter()
+                                            .chain(psi_clause.0.iter())
+                                            .cloned()
+                                            .collect::<Vec<_>>(),
+                                    )
+                                })
+                            })
+                            .flatten()
+                            .collect::<Vec<_>>(),
+                    }
+                }
+            }
+        }
+        match propagated {
+            NNFPropagated::Instant(i) => match i {
+                Instant::T => {
+                    // Trivial SAT CNF
+                    CNF(vec![])
+                }
+                Instant::F => {
+                    // Trivial UNSAT CNF
+                    CNF(vec![CNFClause(vec![])])
+                }
+            },
+            NNFPropagated::Inner(ref inner) => CNF(rec(inner)),
+        }
+    }
+
     #[allow(non_snake_case)]
     pub(crate) fn ECNF(prop: NNF) -> Self {
         let propagated = prop.propagate_constants();
