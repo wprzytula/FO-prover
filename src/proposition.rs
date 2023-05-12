@@ -358,6 +358,26 @@ mod tests {
 
     use quickcheck::Arbitrary;
 
+    impl Arbitrary for Proposition {
+        fn arbitrary(_g: &mut quickcheck::Gen) -> Self {
+            todo!()
+
+            //     arbitrary = sized f where
+
+            //     f 0 = oneof $ map return $ [p, q, r, s, t] ++ [T, F]
+
+            //     f size = frequency [
+            //         (1, liftM Not (f (size - 1))),
+            //         (4, do
+            //             size_ <- choose (0, size - 1)
+            //             conn <- oneof $ map return [And, Or, Implies, Iff]
+            //             left <- f size_
+            //             right <- f $ size - size_ - 1
+            //             return $ conn left right)
+            //     ]
+        }
+    }
+
     impl Arbitrary for CNF {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             let cnf = loop {
