@@ -76,10 +76,13 @@ impl Evaluable for Proposition {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+    use std::cell::RefCell;
+
     use super::*;
 
     use quickcheck::Arbitrary;
+    use rand::Rng;
 
     impl Arbitrary for Proposition {
         fn arbitrary(_g: &mut quickcheck::Gen) -> Self {
@@ -99,6 +102,40 @@ mod tests {
             //             return $ conn left right)
             //     ]
         }
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct RandomCachedValuation<'s> {
+        mapping: RefCell<HashMap<&'s str, bool>>,
+    }
+
+    impl<'s> RandomCachedValuation<'s> {
+        pub(crate) fn new() -> Self {
+            Self {
+                mapping: RefCell::new(HashMap::new()),
+            }
+        }
+    }
+
+    impl<'s> Valuation<'s> for RandomCachedValuation<'s> {
+        fn valuate<'v: 's>(&'s self, var: &'s str) -> Result<bool, MissingValuation> {
+            Ok(*self
+                .mapping
+                .borrow_mut()
+                .entry(var)
+                .or_insert_with(|| rand::thread_rng().gen_bool(0.5)))
+        }
+    }
+
+    pub(crate) fn randomly_check_equivalence(phi: &impl Evaluable, psi: &impl Evaluable) -> bool {
+        const REPETITIONS: u32 = 5;
+        for _ in 0..REPETITIONS {
+            let valuation = RandomCachedValuation::new();
+            if !equivalent(phi, psi, &valuation).unwrap() {
+                return false;
+            }
+        }
+        true
     }
 
     pub(crate) fn equivalent<'a, 'b: 'a>(
