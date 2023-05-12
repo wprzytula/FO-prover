@@ -152,14 +152,14 @@ impl NNF {
 }
 
 impl Evaluable for NNF {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+    fn evaluate<'a, 'b: 'a>(
+        &'a self,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>> {
         match self {
             NNF::Instant(i) => Ok(i.into_bool()),
             NNF::Var(k, s) => {
-                let s_val = valuation
-                    .get(s.as_str())
-                    .copied()
-                    .ok_or(MissingValuation(s))?;
+                let s_val = valuation.valuate(s)?;
                 Ok(match k {
                     NNFVarKind::Pos => s_val,
                     NNFVarKind::Neg => !s_val,
@@ -195,7 +195,10 @@ impl NNFPropagated {
 }
 
 impl Evaluable for NNFPropagated {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+    fn evaluate<'a, 'b: 'a>(
+        &'a self,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>> {
         match self {
             NNFPropagated::Instant(i) => Ok(i.into_bool()),
             NNFPropagated::Inner(inner) => inner.evaluate(valuation),
@@ -227,13 +230,13 @@ impl NNFPropagatedInner {
 }
 
 impl Evaluable for NNFPropagatedInner {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+    fn evaluate<'a, 'b: 'a>(
+        &'a self,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>> {
         match self {
             Self::Var(k, s) => {
-                let s_val = valuation
-                    .get(s.as_str())
-                    .copied()
-                    .ok_or(MissingValuation(s))?;
+                let s_val = valuation.valuate(s)?;
                 Ok(match k {
                     NNFVarKind::Pos => s_val,
                     NNFVarKind::Neg => !s_val,

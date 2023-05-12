@@ -18,13 +18,24 @@ pub(crate) fn fresh_var(vars: &HashSet<String>) -> String {
     unreachable!()
 }
 
-pub(crate) type Valuation<'a> = HashMap<&'a str, bool>;
+// pub(crate) type Valuation<'a> = HashMap<&'a str, bool>;
+pub(crate) trait Valuation {
+    fn valuate<'a, 'b: 'a>(&'a self, var: &'b str) -> Result<bool, MissingValuation>;
+}
+impl<'s> Valuation for HashMap<&'s str, bool> {
+    fn valuate<'a, 'b: 'a>(&'a self, var: &'b str) -> Result<bool, MissingValuation> {
+        self.get(var).copied().ok_or(MissingValuation(var))
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct MissingValuation<'a>(pub(crate) &'a str);
 
 pub(crate) trait Evaluable {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>>;
+    fn evaluate<'a, 'b: 'a>(
+        &'a self,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>>;
 }
 
 impl Logic for Proposition {}
@@ -40,13 +51,13 @@ pub(crate) enum Proposition {
 }
 
 impl Evaluable for Proposition {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+    fn evaluate<'a, 'b: 'a>(
+        &'a self,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>> {
         match self {
             Proposition::Instant(i) => Ok(i.into_bool()),
-            Proposition::Var(s) => valuation
-                .get(s.as_str())
-                .copied()
-                .ok_or(MissingValuation(s)),
+            Proposition::Var(s) => valuation.valuate(s),
             Proposition::LogOp(log_op) => match log_op {
                 LogOp::Not(p) => p.evaluate(valuation).map(|b| !b),
                 LogOp::Bin(BinLogOp { kind, phi, psi }) => {
@@ -88,5 +99,13 @@ mod tests {
             //             return $ conn left right)
             //     ]
         }
+    }
+
+    pub(crate) fn equivalent<'a, 'b: 'a>(
+        phi: &'a impl Evaluable,
+        psi: &'a impl Evaluable,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>> {
+        Ok(phi.evaluate(valuation)? == psi.evaluate(valuation)?)
     }
 }

@@ -28,7 +28,7 @@ fn main() -> Result<()> {
 
     let _formula = parser.parse(&input)?;
 
-    let cnf = CNF::ECNF(NNF::Instant(Instant::F));
+    let cnf = CNF::ECNF(NNF::Instant(Instant::F).propagate_constants());
 
     SatSolver::solve_by_truth_tables(&cnf);
     SatSolver::solve_by_dp(cnf);

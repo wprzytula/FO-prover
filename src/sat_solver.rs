@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     cnf::{CNFClause, Literal, CNF},
-    proposition::{Evaluable, Valuation},
+    proposition::Evaluable,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -322,13 +322,15 @@ impl CNF {
 pub(crate) struct SatSolver;
 
 impl SatSolver {
-    pub(crate) fn solve_by_truth_tables(cnf: &CNF) -> (SolverJudgement, Option<Valuation>) {
-        let mut truth_table = Valuation::new();
+    pub(crate) fn solve_by_truth_tables(
+        cnf: &CNF,
+    ) -> (SolverJudgement, Option<HashMap<&str, bool>>) {
+        let mut truth_table = HashMap::new();
         let vars = Vec::from_iter(HashSet::<&String>::from_iter(cnf.all_literals()).into_iter());
 
         fn valuate_next_var<'a: 'b, 'b>(
             cnf: &CNF,
-            truth_table: &mut Valuation<'b>,
+            truth_table: &'b mut HashMap<&'a str, bool>,
             remaining_vars: &[&'a String],
         ) -> Option<()> {
             if let Some((next_var, remaining_vars)) = remaining_vars.split_first() {

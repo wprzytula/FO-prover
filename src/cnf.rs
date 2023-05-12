@@ -2,7 +2,7 @@ use std::fmt::{Display, Write};
 
 use crate::{
     formula::Instant,
-    nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind, NNF},
+    nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind},
     proposition::{Evaluable, MissingValuation, Valuation},
 };
 
@@ -113,11 +113,11 @@ impl Literal {
 }
 
 impl Evaluable for Literal {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
-        let var_value = valuation
-            .get(self.var().as_str())
-            .copied()
-            .ok_or(MissingValuation(self.var()))?;
+    fn evaluate<'a, 'b: 'a>(
+        &'a self,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>> {
+        let var_value = valuation.valuate(self.var())?;
         Ok(match self {
             Literal::Pos(_) => var_value,
             Literal::Neg(_) => !var_value,
@@ -180,8 +180,7 @@ impl CNF {
     }
 
     #[allow(non_snake_case)]
-    pub(crate) fn ECNF(prop: NNF) -> Self {
-        let propagated = prop.propagate_constants();
+    pub(crate) fn ECNF(propagated: NNFPropagated) -> Self {
         // let vars =
         todo!()
     }
@@ -196,7 +195,10 @@ impl CNF {
 }
 
 impl Evaluable for CNF {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+    fn evaluate<'a, 'b: 'a>(
+        &'a self,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>> {
         self.0
             .iter()
             .map(|literal| literal.evaluate(valuation))
@@ -219,7 +221,10 @@ impl CNFClause {
 }
 
 impl Evaluable for CNFClause {
-    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+    fn evaluate<'a, 'b: 'a>(
+        &'a self,
+        valuation: &'b impl Valuation,
+    ) -> Result<bool, MissingValuation<'a>> {
         self.0
             .iter()
             .map(|literal| literal.evaluate(valuation))
