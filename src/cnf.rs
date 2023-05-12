@@ -1,9 +1,12 @@
-use std::fmt::{Display, Write};
+use std::{
+    collections::HashSet,
+    fmt::{Display, Write},
+};
 
 use crate::{
-    formula::Instant,
-    nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind},
-    proposition::{Evaluable, MissingValuation, Valuation},
+    formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
+    nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind, NNF},
+    proposition::{fresh_var, Evaluable, MissingValuation, Proposition, Valuation},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,8 +184,70 @@ impl CNF {
 
     #[allow(non_snake_case)]
     pub(crate) fn ECNF(propagated: NNFPropagated) -> Self {
-        // let vars =
-        todo!()
+        let mut vars = HashSet::from_iter(propagated.vars().into_iter().map(ToOwned::to_owned));
+
+        fn include_subformula<'a>(
+            ecnf: &mut Vec<CNFClause>,
+            propagated: &'a NNFPropagatedInner,
+            vars: &mut HashSet<String>,
+        ) -> Literal {
+            match propagated {
+                NNFPropagatedInner::Var(k, s) => match k {
+                    NNFVarKind::Pos => Literal::Pos(s.clone()),
+                    NNFVarKind::Neg => Literal::Neg(s.clone()),
+                },
+                NNFPropagatedInner::LogOp { kind, phi, psi } => {
+                    fn proposition_for_literal(lit: Literal) -> Proposition {
+                        match lit {
+                            Literal::Pos(s) => {
+                                Proposition::LogOp(LogOp::Not(Box::new(Proposition::Var(s))))
+                            }
+                            Literal::Neg(s) => Proposition::Var(s),
+                        }
+                    }
+                    let phi = include_subformula(ecnf, phi, vars);
+                    let psi = include_subformula(ecnf, psi, vars);
+                    let theta = fresh_var(vars);
+                    // ψi ≡ qi ↔ (qj#qk)
+                    let formula = Proposition::LogOp(LogOp::Bin(BinLogOp {
+                        kind: BinLogOpKind::Iff,
+                        phi: Box::new(Proposition::Var(theta.clone())),
+                        psi: Box::new(Proposition::LogOp(LogOp::Bin(BinLogOp {
+                            kind: match kind {
+                                NNFLogOpKind::And => BinLogOpKind::And,
+                                NNFLogOpKind::Or => BinLogOpKind::Or,
+                            },
+                            phi: Box::new(proposition_for_literal(phi)),
+                            psi: Box::new(proposition_for_literal(psi)),
+                        }))),
+                    }));
+                    let formula_nnf = NNF::new(formula).propagate_constants();
+                    let formula_cnf = CNF::equivalent(&formula_nnf);
+                    ecnf.extend(formula_cnf.0.into_iter());
+
+                    Literal::Pos(theta)
+                }
+            }
+        }
+
+        match propagated {
+            NNFPropagated::Instant(i) => match i {
+                Instant::T => {
+                    // Trivial SAT CNF
+                    CNF(vec![])
+                }
+                Instant::F => {
+                    // Trivial UNSAT CNF
+                    CNF(vec![CNFClause(vec![])])
+                }
+            },
+            NNFPropagated::Inner(inner) => {
+                let mut ecnf: Vec<CNFClause> = vec![];
+                include_subformula(&mut ecnf, &inner, &mut vars);
+
+                CNF(ecnf)
+            }
+        }
     }
 
     pub(crate) fn is_empty(&self) -> bool {

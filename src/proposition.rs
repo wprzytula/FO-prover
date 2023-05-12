@@ -5,20 +5,20 @@ use std::{
 
 use crate::formula::{BinLogOp, BinLogOpKind, Instant, LogOp, Logic};
 
-pub(crate) fn fresh_var(vars: &HashSet<String>) -> String {
+pub(crate) fn fresh_var(vars: &mut HashSet<String>) -> String {
     let mut buf = String::new();
     buf.push('p');
     for i in 0.. {
         buf.truncate(1);
         write!(buf, "{}", i).unwrap();
         if !vars.contains(buf.as_str()) {
+            vars.insert(buf.clone());
             return buf;
         }
     }
     unreachable!()
 }
 
-// pub(crate) type Valuation<'a> = HashMap<&'a str, bool>;
 pub(crate) trait Valuation<'s>: std::fmt::Debug {
     fn valuate<'v: 's>(&'s self, var: &'v str) -> Result<bool, MissingValuation>;
 }
