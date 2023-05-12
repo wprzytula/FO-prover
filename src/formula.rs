@@ -1,10 +1,13 @@
 use anyhow::{bail, Context};
 use bnf::{ParseTree, ParseTreeNode};
 
+pub(crate) trait Logic {}
+impl Logic for Formula {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Formula {
     Instant(Instant),
-    LogOp(LogOp),
+    LogOp(LogOp<Formula>),
     Rel(Rel),
     Quantifier(Quantifier),
 }
@@ -16,16 +19,16 @@ pub(crate) enum Instant {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum LogOp {
-    Not(Box<Formula>),
-    Bin(BinLogOp),
+pub(crate) enum LogOp<L: Logic> {
+    Not(Box<L>),
+    Bin(BinLogOp<L>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BinLogOp {
+pub(crate) struct BinLogOp<L: Logic> {
     kind: BinLogOpKind,
-    phi: Box<Formula>,
-    psi: Box<Formula>,
+    phi: Box<L>,
+    psi: Box<L>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +38,9 @@ pub(crate) enum BinLogOpKind {
     Implies,
     Iff,
 }
+
+type FOLogOp = LogOp<Formula>;
+type FOBinLogOp = BinLogOp<Formula>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Quantifier {
@@ -170,7 +176,7 @@ mod parse {
             Ok(Rel { name, terms })
         }
 
-        fn parse_log_op(tree: &ParseTree) -> Result<LogOp> {
+        fn parse_log_op(tree: &ParseTree) -> Result<FOLogOp> {
             let ident = "LogOp";
             assert_nonterminal_lhs(tree, ident)?;
             let tree = extract_nonterminal_node(extract_singleton_rhs(tree)?, ident)?;
@@ -182,7 +188,7 @@ mod parse {
             }
         }
 
-        fn parse_not(tree: &ParseTree) -> Result<LogOp> {
+        fn parse_not(tree: &ParseTree) -> Result<FOLogOp> {
             let ident = "Not";
             assert_nonterminal_lhs(tree, ident)?;
             let rhs = extract_rhs::<5>(tree)?;
@@ -195,7 +201,7 @@ mod parse {
             Ok(LogOp::Not(Box::new(phi)))
         }
 
-        fn parse_bin_log_op(tree: &ParseTree) -> Result<BinLogOp> {
+        fn parse_bin_log_op(tree: &ParseTree) -> Result<FOBinLogOp> {
             let ident = "BinLogOp";
             assert_nonterminal_lhs(tree, ident)?;
             let tree = extract_nonterminal_node(extract_singleton_rhs(tree)?, ident)?;

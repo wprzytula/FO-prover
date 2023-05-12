@@ -4,12 +4,17 @@ use std::{
     vec,
 };
 
-use crate::formula::{Instant, LogOp};
+use crate::formula::{BinLogOp, Instant, LogOp, Logic};
+
+impl Logic for Proposition {}
+
+type PLogOp = LogOp<Proposition>;
+type PBinLogOp = BinLogOp<Proposition>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Proposition {
     Instant(Instant),
-    LogOp(LogOp),
+    LogOp(PLogOp),
     Var(String),
 }
 
