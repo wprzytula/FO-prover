@@ -149,7 +149,7 @@ impl CNF {
                         // go (φ `Or` ψ) = [as ++ bs | as <- go φ, bs <- go ψ]
                         NNFLogOpKind::Or => phi_vec
                             .iter()
-                            .map(|phi_clause| {
+                            .flat_map(|phi_clause| {
                                 psi_vec.iter().map(|psi_clause| {
                                     CNFClause(
                                         phi_clause
@@ -161,7 +161,6 @@ impl CNF {
                                     )
                                 })
                             })
-                            .flatten()
                             .collect::<Vec<_>>(),
                     }
                 }

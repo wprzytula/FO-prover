@@ -13,7 +13,7 @@ pub(crate) enum SolverJudgement {
 
 impl CNFClause {
     fn contains_literal_with_var(&self, p: &str) -> bool {
-        self.0.iter().find(|literal| literal.var() == p).is_some()
+        self.0.iter().any(|literal| literal.var() == p)
     }
 
     fn remove_tautologies(&mut self) -> bool {
@@ -90,11 +90,10 @@ impl CNFClause {
 }
 
 impl CNF {
-    fn all_literals<'a>(&'a self) -> impl Iterator<Item = &'a String> {
+    fn all_literals(&self) -> impl Iterator<Item = &String> {
         self.0
             .iter()
-            .map(|clause| clause.0.iter().map(Literal::var))
-            .flatten()
+            .flat_map(|clause| clause.0.iter().map(Literal::var))
     }
 
     fn try_trivially_solve(&self) -> Option<SolverJudgement> {
@@ -273,7 +272,7 @@ impl CNF {
         {
             // sanity check
             let mut clause_iter = self.0.iter();
-            while let Some(clause) = clause_iter.next() {
+            for clause in clause_iter.by_ref() {
                 if clause.contains_literal_with_var(p) {
                     break;
                 }
@@ -300,22 +299,17 @@ impl CNF {
             container.push(clause);
         }
 
-        self.0.extend(
-            poses
-                .iter()
-                .map(|clause_with_p_pos| {
-                    negs.iter().map(|clause_with_p_neg| {
-                        CNFClause(Vec::from_iter(
-                            clause_with_p_pos
-                                .0
-                                .iter()
-                                .chain(clause_with_p_neg.0.iter())
-                                .cloned(),
-                        ))
-                    })
-                })
-                .flatten(),
-        )
+        self.0.extend(poses.iter().flat_map(|clause_with_p_pos| {
+            negs.iter().map(|clause_with_p_neg| {
+                CNFClause(Vec::from_iter(
+                    clause_with_p_pos
+                        .0
+                        .iter()
+                        .chain(clause_with_p_neg.0.iter())
+                        .cloned(),
+                ))
+            })
+        }))
     }
 }
 
@@ -347,7 +341,7 @@ impl SatSolver {
             }
         }
 
-        match valuate_next_var(&cnf, &mut truth_table, &vars) {
+        match valuate_next_var(cnf, &mut truth_table, &vars) {
             Some(_) => (SolverJudgement::Satisfiable, Some(truth_table.clone())),
             None => (SolverJudgement::Unsatisfiable, None),
         }
