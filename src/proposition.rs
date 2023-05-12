@@ -68,6 +68,17 @@ pub(crate) enum NNFPropagated {
     Inner(NNFPropagatedInner),
 }
 
+impl NNFPropagated {
+    pub(crate) fn vars(&self) -> HashSet<&str> {
+        let mut set = HashSet::new();
+        match self {
+            NNFPropagated::Instant(_) => (),
+            NNFPropagated::Inner(inner) => inner.vars(&mut set),
+        };
+        set
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NNFPropagatedInner {
     LogOp {
@@ -76,6 +87,19 @@ pub(crate) enum NNFPropagatedInner {
         psi: Box<Self>,
     },
     Var(NNFVarKind, String),
+}
+impl NNFPropagatedInner {
+    fn vars<'a: 'b, 'b>(&'a self, set: &mut HashSet<&'b str>) {
+        match self {
+            NNFPropagatedInner::LogOp { phi, psi, .. } => {
+                phi.vars(set);
+                psi.vars(set);
+            }
+            NNFPropagatedInner::Var(_, s) => {
+                set.insert(s);
+            }
+        };
+    }
 }
 
 impl NNF {
