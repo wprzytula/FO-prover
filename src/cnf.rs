@@ -3,7 +3,7 @@ use std::fmt::{Display, Write};
 use crate::{
     formula::Instant,
     nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind, NNF},
-    proposition::{MissingValuation, Valuation},
+    proposition::{Evaluable, MissingValuation, Valuation},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,11 +110,10 @@ impl Literal {
     pub(crate) fn has_var(&self, var: &str) -> bool {
         self.var() == var
     }
+}
 
-    pub(crate) fn evaluate<'a>(
-        &'a self,
-        valuation: &'a Valuation,
-    ) -> Result<bool, MissingValuation<'a>> {
+impl Evaluable for Literal {
+    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
         let var_value = valuation
             .get(self.var().as_str())
             .copied()
@@ -127,16 +126,6 @@ impl Literal {
 }
 
 impl CNF {
-    pub(crate) fn evaluate<'a>(
-        &'a self,
-        valuation: &'a Valuation,
-    ) -> Result<bool, MissingValuation<'a>> {
-        self.0
-            .iter()
-            .map(|literal| literal.evaluate(valuation))
-            .try_fold(true, |acc, res| res.map(|val| acc && val))
-    }
-
     pub(crate) fn equivalent(propagated: &NNFPropagated) -> Self {
         fn rec(nnf: &NNFPropagatedInner) -> Vec<CNFClause> {
             match nnf {
@@ -206,19 +195,18 @@ impl CNF {
     }
 }
 
-impl CNFClause {
-    pub(crate) fn sort(&mut self) {
-        self.0.sort_unstable();
-    }
-
-    pub(crate) fn evaluate<'a>(
-        &'a self,
-        valuation: &'a Valuation,
-    ) -> Result<bool, MissingValuation<'a>> {
+impl Evaluable for CNF {
+    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
         self.0
             .iter()
             .map(|literal| literal.evaluate(valuation))
-            .try_fold(false, |acc, res| res.map(|val| acc || val))
+            .try_fold(true, |acc, res| res.map(|val| acc && val))
+    }
+}
+
+impl CNFClause {
+    pub(crate) fn sort(&mut self) {
+        self.0.sort_unstable();
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -227,6 +215,15 @@ impl CNFClause {
 
     pub(crate) fn one_literal_clause(&self) -> Option<&Literal> {
         (self.0.len() == 1).then(|| &self.0[0])
+    }
+}
+
+impl Evaluable for CNFClause {
+    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>> {
+        self.0
+            .iter()
+            .map(|literal| literal.evaluate(valuation))
+            .try_fold(false, |acc, res| res.map(|val| acc || val))
     }
 }
 

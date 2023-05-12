@@ -3,7 +3,7 @@ use std::{
     fmt::Write,
 };
 
-use crate::formula::{BinLogOp, Instant, LogOp, Logic};
+use crate::formula::{BinLogOp, BinLogOpKind, Instant, LogOp, Logic};
 
 pub(crate) fn fresh_var(vars: &HashSet<String>) -> String {
     let mut buf = String::new();
@@ -22,6 +22,10 @@ pub(crate) type Valuation<'a> = HashMap<&'a str, bool>;
 
 #[derive(Debug)]
 pub(crate) struct MissingValuation<'a>(pub(crate) &'a str);
+
+pub(crate) trait Evaluable {
+    fn evaluate<'a>(&'a self, valuation: &'a Valuation) -> Result<bool, MissingValuation<'a>>;
+}
 
 impl Logic for Proposition {}
 

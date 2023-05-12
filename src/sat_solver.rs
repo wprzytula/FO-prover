@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     cnf::{CNFClause, Literal, CNF},
-    proposition::Valuation,
+    proposition::{Evaluable, Valuation},
 };
 
 #[derive(Debug, PartialEq, Eq)]

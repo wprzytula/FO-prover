@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
-    proposition::Proposition,
+    proposition::{Evaluable, MissingValuation, Proposition, Valuation},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,14 +21,6 @@ pub(crate) enum NNFVarKind {
     Pos,
     Neg,
 }
-impl NNFLogOpKind {
-    pub(crate) fn opposite(self) -> Self {
-        match self {
-            NNFLogOpKind::And => NNFLogOpKind::Or,
-            NNFLogOpKind::Or => NNFLogOpKind::And,
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub(crate) enum NNFLogOpKind {
@@ -36,43 +28,12 @@ pub(crate) enum NNFLogOpKind {
     Or,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum NNFPropagated {
-    Instant(Instant),
-    Inner(NNFPropagatedInner),
-}
-
-impl NNFPropagated {
-    pub(crate) fn vars(&self) -> HashSet<&str> {
-        let mut set = HashSet::new();
+impl NNFLogOpKind {
+    pub(crate) fn opposite(self) -> Self {
         match self {
-            NNFPropagated::Instant(_) => (),
-            NNFPropagated::Inner(inner) => inner.vars(&mut set),
-        };
-        set
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum NNFPropagatedInner {
-    LogOp {
-        kind: NNFLogOpKind,
-        phi: Box<Self>,
-        psi: Box<Self>,
-    },
-    Var(NNFVarKind, String),
-}
-impl NNFPropagatedInner {
-    fn vars<'a: 'b, 'b>(&'a self, set: &mut HashSet<&'b str>) {
-        match self {
-            NNFPropagatedInner::LogOp { phi, psi, .. } => {
-                phi.vars(set);
-                psi.vars(set);
-            }
-            NNFPropagatedInner::Var(_, s) => {
-                set.insert(s);
-            }
-        };
+            NNFLogOpKind::And => NNFLogOpKind::Or,
+            NNFLogOpKind::Or => NNFLogOpKind::And,
+        }
     }
 }
 
@@ -187,6 +148,46 @@ impl NNF {
                 }
             }
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NNFPropagated {
+    Instant(Instant),
+    Inner(NNFPropagatedInner),
+}
+
+impl NNFPropagated {
+    pub(crate) fn vars(&self) -> HashSet<&str> {
+        let mut set = HashSet::new();
+        match self {
+            NNFPropagated::Instant(_) => (),
+            NNFPropagated::Inner(inner) => inner.vars(&mut set),
+        };
+        set
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NNFPropagatedInner {
+    LogOp {
+        kind: NNFLogOpKind,
+        phi: Box<Self>,
+        psi: Box<Self>,
+    },
+    Var(NNFVarKind, String),
+}
+impl NNFPropagatedInner {
+    fn vars<'a: 'b, 'b>(&'a self, set: &mut HashSet<&'b str>) {
+        match self {
+            NNFPropagatedInner::LogOp { phi, psi, .. } => {
+                phi.vars(set);
+                psi.vars(set);
+            }
+            NNFPropagatedInner::Var(_, s) => {
+                set.insert(s);
+            }
+        };
     }
 }
 
