@@ -1,10 +1,23 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Display, Write},
     vec,
 };
 
 use crate::formula::{BinLogOp, BinLogOpKind, Instant, LogOp, Logic};
+
+pub(crate) fn fresh_var(vars: &HashSet<String>) -> String {
+    let mut buf = String::new();
+    buf.push('p');
+    for i in 0.. {
+        buf.truncate(1);
+        write!(buf, "{}", i).unwrap();
+        if !vars.contains(buf.as_str()) {
+            return buf;
+        }
+    }
+    unreachable!()
+}
 
 impl Logic for Proposition {}
 
