@@ -18,6 +18,30 @@ pub(crate) enum Instant {
     F,
 }
 
+impl Instant {
+    pub(crate) fn negated(self) -> Self {
+        match self {
+            Instant::T => Instant::F,
+            Instant::F => Instant::T,
+        }
+    }
+
+    pub(crate) fn into_bool(self) -> bool {
+        match self {
+            Instant::T => true,
+            Instant::F => true,
+        }
+    }
+
+    pub(crate) fn from_bool(b: bool) -> Self {
+        if b {
+            Self::T
+        } else {
+            Self::F
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LogOp<L: Logic> {
     Not(Box<L>),
