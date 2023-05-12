@@ -50,9 +50,9 @@ pub(crate) enum LogOp<L: Logic> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BinLogOp<L: Logic> {
-    kind: BinLogOpKind,
-    phi: Box<L>,
-    psi: Box<L>,
+    pub(crate) kind: BinLogOpKind,
+    pub(crate) phi: Box<L>,
+    pub(crate) psi: Box<L>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
