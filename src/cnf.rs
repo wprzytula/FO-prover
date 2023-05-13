@@ -256,6 +256,12 @@ impl CNF {
     pub(crate) fn contains_empty_clause(&self) -> bool {
         self.0.iter().any(CNFClause::is_empty)
     }
+
+    pub(crate) fn all_literals(&self) -> impl Iterator<Item = &String> {
+        self.0
+            .iter()
+            .flat_map(|clause| clause.0.iter().map(Literal::var))
+    }
 }
 
 impl Evaluable for CNF {

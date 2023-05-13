@@ -90,12 +90,6 @@ impl CNFClause {
 }
 
 impl CNF {
-    fn all_literals(&self) -> impl Iterator<Item = &String> {
-        self.0
-            .iter()
-            .flat_map(|clause| clause.0.iter().map(Literal::var))
-    }
-
     fn try_trivially_solve(&self) -> Option<SolverJudgement> {
         if self.is_empty() {
             Some(SolverJudgement::Satisfiable)
