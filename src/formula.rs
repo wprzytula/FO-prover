@@ -9,7 +9,7 @@ pub(crate) enum Formula {
     Instant(Instant),
     LogOp(LogOp<Formula>),
     Rel(Rel),
-    Quantifier(Quantifier),
+    Quantified(Quantifier),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -174,7 +174,7 @@ mod parse {
                 "Instant" => Self::parse_instant(tree).map(Formula::Instant),
                 "Rel" => Self::parse_rel(tree).map(Formula::Rel),
                 "LogOp" => Self::parse_log_op(tree).map(Formula::LogOp),
-                "Quantifier" => Self::parse_quantifier(tree).map(Formula::Quantifier),
+                "Quantifier" => Self::parse_quantifier(tree).map(Formula::Quantified),
                 otherwise => bail!("Expected phi variant, got \"{}\"", otherwise),
             }
         }
@@ -391,7 +391,7 @@ mod parse {
                         Formula::LogOp(LogOp::Bin(BinLogOp {
                             kind: BinLogOpKind::And,
                             phi: Box::new(Formula::Instant(T)),
-                            psi: Box::new(Formula::Quantifier(Quantifier {
+                            psi: Box::new(Formula::Quantified(Quantifier {
                                 kind: Exists,
                                 var: "xD".to_owned(),
                                 phi: Box::new(Formula::Instant(F)),
@@ -408,7 +408,6 @@ mod parse {
                 for (formula, expected) in formulas {
                     // let parsed_formula = parser.parse(formula).unwrap();
                     let tree = parser.parse_to_tree(formula).unwrap();
-                    println!("{:#?}", tree);
                     let parsed_formula = Formula::parse_input(&tree)
                         .unwrap_or_else(|err| panic!("Backtrace: {}", err.backtrace()));
                     assert_eq!(parsed_formula, expected);
