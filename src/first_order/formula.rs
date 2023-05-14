@@ -370,7 +370,8 @@ mod parse {
 
     #[cfg(test)]
     mod tests {
-        use crate::{parser::Parser, tests::for_each_external_test};
+        use crate::first_order::parser::Parser;
+        use crate::tests::for_each_external_test;
 
         use super::*;
         use Instant::{F, T};

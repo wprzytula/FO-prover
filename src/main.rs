@@ -5,18 +5,14 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 
 use anyhow::Result;
-use cnf::CNF;
-use formula::Instant;
-use nnf::NNF;
-use parser::Parser;
-use sat_solver::SatSolver;
+use first_order::formula::Instant;
+use first_order::parser::Parser;
+use propositional::cnf::CNF;
+use propositional::nnf::NNF;
+use propositional::sat_solver::SatSolver;
 
-pub(crate) mod cnf;
-pub(crate) mod formula;
-pub(crate) mod nnf;
-pub(crate) mod parser;
-pub(crate) mod proposition;
-pub(crate) mod sat_solver;
+pub(crate) mod first_order;
+pub(crate) mod propositional;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::builder().format_timestamp(None).try_init();
@@ -32,12 +28,13 @@ fn main() -> Result<()> {
     };
 
     let _formula = parser.parse(&input)?;
+    let is_tautology = false; // FIXME
+    print!("{}", is_tautology as u8);
 
+    // Just to silence "unused":
     let cnf = CNF::ECNF(NNF::Instant(Instant::F).propagate_constants());
-
     SatSolver::solve_by_truth_tables(&cnf);
     SatSolver::solve_by_dp(cnf);
-
     Ok(())
 }
 

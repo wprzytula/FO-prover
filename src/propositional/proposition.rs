@@ -4,7 +4,7 @@ use std::{
     hash::Hash,
 };
 
-use crate::formula::{BinLogOp, BinLogOpKind, Instant, LogOp, Logic};
+use crate::first_order::formula::{BinLogOp, BinLogOpKind, Instant, LogOp, Logic};
 
 pub(crate) fn fresh_var(vars: &mut HashSet<String>) -> String {
     let mut buf = String::new();
@@ -46,7 +46,6 @@ pub(crate) trait UsedVars {
 impl Logic for Proposition {}
 
 type PLogOp = LogOp<Proposition>;
-type PBinLogOp = BinLogOp<Proposition>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Proposition {

@@ -1,8 +1,8 @@
 use std::{collections::HashSet, hash::Hash};
 
 use crate::{
-    formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
-    proposition::{Evaluable, MissingValuation, Proposition, UsedVars, Valuation},
+    first_order::formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
+    propositional::proposition::{Evaluable, MissingValuation, Proposition, UsedVars, Valuation},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -289,7 +289,7 @@ impl UsedVars for NNFPropagatedInner {
 mod tests {
     use crate::{
         init_logger,
-        proposition::{tests::randomly_check_equivalence, Proposition},
+        propositional::proposition::{tests::randomly_check_equivalence, Proposition},
     };
 
     use super::*;

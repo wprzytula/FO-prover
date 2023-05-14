@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use bnf::{Grammar, ParseTree};
 
-use crate::formula::Formula;
+use super::formula::Formula;
 
 static BNF_GRAMMAR: &str = include_str!("grammar.bnf");
 

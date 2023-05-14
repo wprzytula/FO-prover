@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use log::{debug, trace};
 
-use crate::{
+use super::{
     cnf::{CNFClause, Literal, CNF},
     proposition::{Evaluable, UsedVars},
 };
@@ -405,11 +405,13 @@ pub(crate) mod tests {
     use quickcheck::TestResult;
 
     use crate::{
-        cnf::{CNFClause, Literal, CNF},
-        formula::Instant,
+        first_order::formula::Instant,
         init_logger,
-        nnf::NNF,
-        proposition::Proposition,
+        propositional::{
+            cnf::{CNFClause, Literal, CNF},
+            nnf::NNF,
+            proposition::Proposition,
+        },
     };
 
     use super::*;

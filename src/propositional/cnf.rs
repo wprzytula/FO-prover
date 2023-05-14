@@ -6,9 +6,11 @@ use std::{
 use log::debug;
 
 use crate::{
-    formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
-    nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind, NNF},
-    proposition::{fresh_var, Evaluable, MissingValuation, Proposition, UsedVars, Valuation},
+    first_order::formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
+    propositional::{
+        nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind, NNF},
+        proposition::{fresh_var, Evaluable, MissingValuation, Proposition, UsedVars, Valuation},
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -315,9 +317,11 @@ mod tests {
 
     use crate::{
         init_logger,
-        nnf::NNF,
-        proposition::{tests::randomly_check_equivalence, Proposition},
-        sat_solver::tests::equisatisfiable,
+        propositional::{
+            nnf::NNF,
+            proposition::{tests::randomly_check_equivalence, Proposition},
+            sat_solver::tests::equisatisfiable,
+        },
     };
 
     use super::*;
