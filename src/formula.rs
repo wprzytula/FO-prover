@@ -29,7 +29,7 @@ impl Instant {
     pub(crate) fn into_bool(self) -> bool {
         match self {
             Instant::T => true,
-            Instant::F => true,
+            Instant::F => false,
         }
     }
 
