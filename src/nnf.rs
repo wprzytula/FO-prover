@@ -293,14 +293,14 @@ mod tests {
 
     #[test]
     fn nnf_preserves_logical_equivalence() {
-        let prop = Proposition::example();
+        let prop = Proposition::example_sat();
         let nnf = NNF::new(prop.clone());
         assert!(randomly_check_equivalence(&prop, &nnf));
     }
 
     #[test]
     fn nnf_propagated_preserves_logical_equivalence() {
-        let prop = Proposition::example();
+        let prop = Proposition::example_sat();
         let nnf = NNF::new(prop);
         let nnf_propagated = nnf.clone().propagate_constants();
         assert!(randomly_check_equivalence(&nnf, &nnf_propagated));

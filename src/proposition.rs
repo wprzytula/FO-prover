@@ -182,7 +182,7 @@ pub(crate) mod tests {
     }
 
     impl Proposition {
-        pub(crate) fn example() -> Self {
+        pub(crate) fn example_sat() -> Self {
             Self::LogOp(LogOp::Not(Box::new(Self::LogOp(LogOp::Bin(BinLogOp {
                 kind: BinLogOpKind::Iff,
                 phi: Box::new(Self::Var("p".to_owned())),
