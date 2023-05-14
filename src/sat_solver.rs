@@ -16,7 +16,7 @@ impl CNFClause {
         self.0.iter().any(|literal| literal.var() == p)
     }
 
-    fn remove_tautologies(&mut self) -> bool {
+    fn remove_duplicate_literals_and_check_if_tautology(&mut self) -> bool {
         self.sort();
         let literals_before = self.0.len();
         let mut nubbed = Vec::new();
@@ -104,7 +104,8 @@ impl CNF {
     /// Removes tautological clauses.
     pub(crate) fn remove_tautologies(&mut self) -> bool {
         let clauses_before = self.0.len();
-        self.0.retain_mut(|clause| !clause.remove_tautologies());
+        self.0
+            .retain_mut(|clause| !clause.remove_duplicate_literals_and_check_if_tautology());
         let clauses_after = self.0.len();
         clauses_before > clauses_after
     }
@@ -415,22 +416,42 @@ pub(crate) mod tests {
     #[test]
     fn test_remove_tautologies() {
         init_logger();
-        let tests = [(
-            vec![
-                Literal::Pos("x".to_owned()),
-                Literal::Pos("y".to_owned()),
-                Literal::Pos("x".to_owned()),
-                Literal::Neg("z".to_owned()),
-                Literal::Pos("y".to_owned()),
-                Literal::Neg("x".to_owned()),
-            ],
-            vec![Literal::Pos("y".to_owned()), Literal::Neg("z".to_owned())],
-        )];
+        let tests = [
+            (
+                vec![
+                    Literal::Pos("x".to_owned()),
+                    Literal::Pos("y".to_owned()),
+                    Literal::Pos("x".to_owned()),
+                    Literal::Neg("z".to_owned()),
+                    Literal::Pos("y".to_owned()),
+                    Literal::Neg("x".to_owned()),
+                ],
+                None,
+            ),
+            (
+                vec![
+                    Literal::Pos("x".to_owned()),
+                    Literal::Neg("z".to_owned()),
+                    Literal::Pos("y".to_owned()),
+                    Literal::Pos("x".to_owned()),
+                    Literal::Neg("z".to_owned()),
+                    Literal::Pos("y".to_owned()),
+                ],
+                Some(vec![
+                    Literal::Pos("x".to_owned()),
+                    Literal::Pos("y".to_owned()),
+                    Literal::Neg("z".to_owned()),
+                ]),
+            ),
+        ];
         for (test, expected) in tests {
             let mut clause = CNFClause(test);
-            let expected = CNFClause(expected);
-            clause.remove_tautologies();
-            assert_eq!(clause, expected);
+            let tautology = clause.remove_duplicate_literals_and_check_if_tautology();
+            assert_eq!(tautology, expected.is_none());
+            if let Some(expected_clause) = expected {
+                let expected = CNFClause(expected_clause);
+                assert_eq!(clause, expected);
+            }
         }
     }
 
