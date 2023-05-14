@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use log::{debug, trace};
+
 use crate::{
     cnf::{CNFClause, Literal, CNF},
     proposition::{Evaluable, UsedVars},
@@ -16,12 +18,26 @@ impl CNFClause {
         self.0.iter().any(|literal| literal.var() == p)
     }
 
+    // Removes duplicate literals as a side effect.
+    // Returns whether the clause is a tautology (contains both negative and positive
+    // literal of same variable) and hence can be removed.
     fn remove_duplicate_literals_and_check_if_tautology(&mut self) -> bool {
         self.sort();
         let literals_before = self.0.len();
         let mut nubbed = Vec::new();
         let mut last_pos: Option<String> = None;
         let mut last_neg: Option<String> = None;
+
+        fn found_tautology(
+            new: &Literal,
+            last_pos: &Option<String>,
+            last_neg: &Option<String>,
+        ) -> bool {
+            match new {
+                Literal::Pos(s) => Some(s) == last_neg.as_ref(),
+                Literal::Neg(s) => Some(s) == last_pos.as_ref(),
+            }
+        }
 
         fn should_flush(
             new: &String,
@@ -48,7 +64,7 @@ impl CNFClause {
                 (Some(pos), None) => nubbed.push(Literal::Pos(pos)),
                 (Some(pos), Some(neg)) => match Ord::cmp(&pos, &neg) {
                     std::cmp::Ordering::Equal => {
-                        // removed tautological literal
+                        unreachable!("This case should have been handled in found_tautology()")
                     }
                     std::cmp::Ordering::Less => {
                         nubbed.push(Literal::Pos(pos));
@@ -62,12 +78,16 @@ impl CNFClause {
             }
         }
 
-        for name in self.0.drain(..) {
-            let var = name.var();
+        for literal in self.0.drain(..) {
+            if found_tautology(&literal, &last_pos, &last_neg) {
+                trace!("Found tautology of literal {}", &literal);
+                return true;
+            }
+            let var = literal.var();
             if should_flush(var, &last_pos, &last_neg) {
                 flush(&mut nubbed, &mut last_pos, &mut last_neg);
             }
-            match name {
+            match literal {
                 Literal::Pos(s) => {
                     if last_pos.is_none() {
                         last_pos = Some(s);
@@ -85,7 +105,11 @@ impl CNFClause {
 
         let literals_after = self.0.len();
         assert!(literals_after <= literals_before);
-        literals_after < literals_before
+        debug!(
+            "Removed {} literals from the clause",
+            literals_before - literals_after
+        );
+        false
     }
 }
 
@@ -107,6 +131,12 @@ impl CNF {
         self.0
             .retain_mut(|clause| !clause.remove_duplicate_literals_and_check_if_tautology());
         let clauses_after = self.0.len();
+        debug!(
+            "Clauses before: {}, after: {} (removed {})",
+            clauses_before,
+            clauses_after,
+            clauses_before - clauses_after
+        );
         clauses_before > clauses_after
     }
 
