@@ -369,10 +369,23 @@ mod tests {
 
     #[test]
     fn cnf_preserves_logical_equivalence() {
-        let prop = Proposition::example_sat();
-        let nnf = NNF::new(prop);
-        let nnf_propagated = nnf.clone().propagate_constants();
-        let cnf = CNF::equivalent(&nnf_propagated);
-        assert!(randomly_check_equivalence(&nnf_propagated, &cnf));
+        {
+            // SAT
+            let prop = Proposition::example_sat();
+            let nnf = NNF::new(prop);
+            let nnf_propagated = nnf.clone().propagate_constants();
+            let cnf = CNF::equivalent(&nnf_propagated);
+            assert!(randomly_check_equivalence(&nnf_propagated, &cnf));
+        }
+        {
+            // UNSAT
+            let prop = Proposition::example_unsat();
+            let nnf = NNF::new(prop);
+            let nnf_propagated = nnf.clone().propagate_constants();
+            let cnf = CNF::equivalent(&nnf_propagated);
+            assert!(randomly_check_equivalence(&nnf_propagated, &cnf));
+        }
+    }
+
     }
 }
