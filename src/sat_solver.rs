@@ -906,6 +906,34 @@ pub(crate) mod tests {
         }
     }
 
+    #[test]
+    fn sat_solver_integration_test() {
+        init_logger();
+        let tests = Proposition::tautologies()
+            .into_iter()
+            .zip(std::iter::repeat_with(|| SolverJudgement::Satisfiable))
+            .chain(
+                Proposition::unsats()
+                    .zip(std::iter::repeat_with(|| SolverJudgement::Unsatisfiable)),
+            );
+        for ((name, proposition), expected_judgement) in tests {
+            let (truth_tables_judgement, maybe_valuation) =
+                SatSolver::solve_by_truth_tables(&proposition);
+            assert_eq!(
+                expected_judgement, truth_tables_judgement,
+                "EXPECTED judgement differs from truth tables. Proposition: {}\n{:#?}\nSatisfying valuation:{:#?}",
+                name,
+                &proposition,
+                maybe_valuation,
+            );
+
+            let nnf = NNF::new(proposition.clone()).propagate_constants();
+            let cnf = CNF::ECNF(nnf);
+            let dp_judgement = SatSolver::solve_by_dp(cnf);
+            assert_eq!(dp_judgement, expected_judgement);
+        }
+    }
+
     #[quickcheck]
     #[ignore = "Too long"]
     fn quicktest_sat_solver(cnf: CNF) -> TestResult {
