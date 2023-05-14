@@ -1,8 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::{
     cnf::{CNFClause, Literal, CNF},
-    proposition::Evaluable,
+    proposition::{Evaluable, UsedVars},
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -311,31 +311,31 @@ pub(crate) struct SatSolver;
 
 impl SatSolver {
     pub(crate) fn solve_by_truth_tables(
-        cnf: &CNF,
+        formula: &(impl Evaluable + UsedVars),
     ) -> (SolverJudgement, Option<HashMap<&str, bool>>) {
         let mut truth_table = HashMap::new();
-        let vars = Vec::from_iter(HashSet::<&String>::from_iter(cnf.all_literals()).into_iter());
+        let vars = Vec::from_iter(formula.used_vars().into_iter());
 
         fn valuate_next_var<'a: 'b, 'b>(
-            cnf: &CNF,
+            formula: &(impl Evaluable + UsedVars),
             truth_table: &'b mut HashMap<&'a str, bool>,
             remaining_vars: &[&'a String],
         ) -> Option<()> {
             if let Some((next_var, remaining_vars)) = remaining_vars.split_first() {
                 truth_table.insert(next_var, true);
                 if let Some(satisfying_valuation) =
-                    valuate_next_var(cnf, truth_table, remaining_vars)
+                    valuate_next_var(formula, truth_table, remaining_vars)
                 {
                     return Some(satisfying_valuation);
                 }
                 truth_table.insert(next_var, false);
-                valuate_next_var(cnf, truth_table, remaining_vars)
+                valuate_next_var(formula, truth_table, remaining_vars)
             } else {
-                cnf.evaluate(truth_table).unwrap().then_some(())
+                formula.evaluate(truth_table).unwrap().then_some(())
             }
         }
 
-        match valuate_next_var(cnf, &mut truth_table, &vars) {
+        match valuate_next_var(formula, &mut truth_table, &vars) {
             Some(_) => (SolverJudgement::Satisfiable, Some(truth_table.clone())),
             None => (SolverJudgement::Unsatisfiable, None),
         }
