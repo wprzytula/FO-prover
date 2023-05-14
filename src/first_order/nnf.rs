@@ -106,4 +106,74 @@ impl NNF {
         }
         rec(p, true)
     }
+
+    pub(crate) fn propagate_constants(self) -> NNFPropagated {
+        match self {
+            NNF::Instant(i) => NNFPropagated::Instant(i),
+            NNF::Rel { kind, name, terms } => {
+                NNFPropagated::Inner(NNFPropagatedInner::Rel { kind, name, terms })
+            }
+            NNF::LogOp { kind, phi, psi } => {
+                let phi = phi.propagate_constants();
+                let psi = psi.propagate_constants();
+                match (phi, psi) {
+                    (NNFPropagated::Instant(i), NNFPropagated::Instant(j)) => {
+                        NNFPropagated::Instant(Instant::from_bool(match kind {
+                            NNFLogOpKind::And => i.into_bool() && j.into_bool(),
+                            NNFLogOpKind::Or => i.into_bool() || j.into_bool(),
+                        }))
+                    }
+                    (NNFPropagated::Instant(i), x) | (x, NNFPropagated::Instant(i)) => {
+                        match (kind, i) {
+                            (NNFLogOpKind::And, Instant::T) => x,
+                            (NNFLogOpKind::And, Instant::F) => NNFPropagated::Instant(Instant::F),
+                            (NNFLogOpKind::Or, Instant::T) => NNFPropagated::Instant(Instant::T),
+                            (NNFLogOpKind::Or, Instant::F) => x,
+                        }
+                    }
+                    (NNFPropagated::Inner(phi), NNFPropagated::Inner(psi)) => {
+                        NNFPropagated::Inner(NNFPropagatedInner::LogOp {
+                            kind,
+                            phi: Box::new(phi),
+                            psi: Box::new(psi),
+                        })
+                    }
+                }
+            }
+            NNF::Quantified { kind, var, phi } => match phi.propagate_constants() {
+                // TODO: Is this surely valid?
+                n @ NNFPropagated::Instant(_) => n,
+                NNFPropagated::Inner(phi) => NNFPropagated::Inner(NNFPropagatedInner::Quantified {
+                    kind,
+                    var,
+                    phi: Box::new(phi),
+                }),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NNFPropagated {
+    Instant(Instant),
+    Inner(NNFPropagatedInner),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NNFPropagatedInner {
+    LogOp {
+        kind: NNFLogOpKind,
+        phi: Box<Self>,
+        psi: Box<Self>,
+    },
+    Rel {
+        kind: NNFRelKind,
+        name: String,
+        terms: Vec<Term>,
+    },
+    Quantified {
+        kind: QuantifierKind,
+        var: String,
+        phi: Box<Self>,
+    },
 }
