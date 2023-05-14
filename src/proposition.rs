@@ -261,5 +261,46 @@ pub(crate) mod tests {
                 })),
             ))))))
         }
+        pub(crate) fn tautologies() -> impl IntoIterator<Item = (&'static str, Proposition)> {
+            use Proposition as P;
+            [
+                (
+                    "contraposition",
+                    P::iff(
+                        P::implies(P::var("A"), P::var("B")),
+                        P::implies(P::not(P::var("B")), P::not(P::var("A"))),
+                    ),
+                ),
+                (
+                    "proof by cases",
+                    P::implies(
+                        P::and(
+                            P::or(P::var("A"), P::var("B")),
+                            P::and(
+                                P::implies(P::var("A"), P::var("C")),
+                                P::implies(P::var("B"), P::var("C")),
+                            ),
+                        ),
+                        P::var("C"),
+                    ),
+                ),
+                (
+                    "reductio ad absurdum",
+                    P::implies(
+                        P::and(
+                            P::implies(P::not(P::var("A")), P::var("B")),
+                            P::implies(P::not(P::var("A")), P::not(P::var("B"))),
+                        ),
+                        P::var("A"),
+                    ),
+                ),
+            ]
+        }
+
+        pub(crate) fn unsats() -> impl Iterator<Item = (&'static str, Proposition)> {
+            Self::tautologies()
+                .into_iter()
+                .map(|(name, proposition)| (name, Proposition::not(proposition)))
+        }
     }
 }
