@@ -199,5 +199,34 @@ pub(crate) mod tests {
                 }))),
             })))))
         }
+        pub(crate) fn example_unsat() -> Self {
+            Self::LogOp(LogOp::Not(Box::new(Self::LogOp(LogOp::Not(Box::new(
+                Self::LogOp(LogOp::Bin(BinLogOp {
+                    kind: BinLogOpKind::Iff,
+                    phi: Box::new(Self::Var("p".to_owned())),
+                    psi: Box::new(Self::LogOp(LogOp::Bin(BinLogOp {
+                        kind: BinLogOpKind::Implies,
+                        phi: Box::new(Self::LogOp(LogOp::Bin(BinLogOp {
+                            kind: BinLogOpKind::Or,
+                            phi: Box::new(Self::LogOp(LogOp::Bin(BinLogOp {
+                                kind: BinLogOpKind::Or,
+                                phi: Box::new(Self::Instant(Instant::F)),
+                                psi: Box::new(Self::LogOp(LogOp::Not(Box::new(Self::Var(
+                                    "q".to_owned(),
+                                ))))),
+                            }))),
+                            psi: Box::new(Self::Var("q".to_owned())),
+                        }))),
+                        psi: Box::new(Self::LogOp(LogOp::Not(Box::new(Self::LogOp(LogOp::Bin(
+                            BinLogOp {
+                                kind: BinLogOpKind::And,
+                                phi: Box::new(Self::Var("p".to_owned())),
+                                psi: Box::new(Self::Var("p".to_owned())),
+                            },
+                        )))))),
+                    }))),
+                })),
+            ))))))
+        }
     }
 }
