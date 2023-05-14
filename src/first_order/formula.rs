@@ -68,9 +68,9 @@ type FOBinLogOp = BinLogOp<Formula>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Quantifier {
-    kind: QuantifierKind,
-    var: String,
-    phi: Box<Formula>,
+    pub(crate) kind: QuantifierKind,
+    pub(crate) var: String,
+    pub(crate) phi: Box<Formula>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -81,8 +81,8 @@ pub(crate) enum QuantifierKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Rel {
-    name: String,
-    terms: Vec<Term>,
+    pub(crate) name: String,
+    pub(crate) terms: Vec<Term>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
