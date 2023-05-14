@@ -100,11 +100,6 @@ impl Literal {
             Literal::Neg(s) => Literal::Pos(std::mem::take(s)),
         }
     }
-    pub(crate) fn into_var(self) -> String {
-        match self {
-            Literal::Pos(s) | Literal::Neg(s) => s,
-        }
-    }
     pub(crate) fn var(&self) -> &String {
         match self {
             Literal::Pos(s) | Literal::Neg(s) => s,
@@ -195,44 +190,39 @@ impl CNF {
             ecnf: &mut Vec<CNFClause>,
             propagated: &'a NNFPropagatedInner,
             vars: &mut HashSet<String>,
-        ) -> Literal {
-            match propagated {
+        ) -> String {
+            let theta = fresh_var(vars);
+            let formula_eq = match propagated {
                 NNFPropagatedInner::Var(k, s) => match k {
-                    NNFVarKind::Pos => Literal::Pos(s.clone()),
-                    NNFVarKind::Neg => Literal::Neg(s.clone()),
+                    NNFVarKind::Pos => Proposition::Var(s.clone()),
+                    NNFVarKind::Neg => {
+                        Proposition::LogOp(LogOp::Not(Box::new(Proposition::Var(s.clone()))))
+                    }
                 },
                 NNFPropagatedInner::LogOp { kind, phi, psi } => {
-                    fn proposition_for_literal(lit: Literal) -> Proposition {
-                        match lit {
-                            Literal::Pos(s) => {
-                                Proposition::LogOp(LogOp::Not(Box::new(Proposition::Var(s))))
-                            }
-                            Literal::Neg(s) => Proposition::Var(s),
-                        }
-                    }
                     let phi = include_subformula(ecnf, phi, vars);
                     let psi = include_subformula(ecnf, psi, vars);
-                    let theta = fresh_var(vars);
                     // ψi ≡ qi ↔ (qj#qk)
-                    let formula = Proposition::LogOp(LogOp::Bin(BinLogOp {
-                        kind: BinLogOpKind::Iff,
-                        phi: Box::new(Proposition::Var(theta.clone())),
-                        psi: Box::new(Proposition::LogOp(LogOp::Bin(BinLogOp {
-                            kind: match kind {
-                                NNFLogOpKind::And => BinLogOpKind::And,
-                                NNFLogOpKind::Or => BinLogOpKind::Or,
-                            },
-                            phi: Box::new(proposition_for_literal(phi)),
-                            psi: Box::new(proposition_for_literal(psi)),
-                        }))),
-                    }));
-                    let formula_nnf = NNF::new(formula).propagate_constants();
-                    let formula_cnf = CNF::equivalent(&formula_nnf);
-                    ecnf.extend(formula_cnf.0.into_iter());
-
-                    Literal::Pos(theta)
+                    Proposition::LogOp(LogOp::Bin(BinLogOp {
+                        kind: match kind {
+                            NNFLogOpKind::And => BinLogOpKind::And,
+                            NNFLogOpKind::Or => BinLogOpKind::Or,
+                        },
+                        phi: Box::new(Proposition::Var(phi)),
+                        psi: Box::new(Proposition::Var(psi)),
+                    }))
                 }
-            }
+            };
+            let formula = Proposition::LogOp(LogOp::Bin(BinLogOp {
+                kind: BinLogOpKind::Iff,
+                phi: Box::new(Proposition::Var(theta.clone())),
+                psi: Box::new(formula_eq),
+            }));
+            let formula_nnf = NNF::new(formula).propagate_constants();
+            let formula_cnf = CNF::equivalent(&formula_nnf);
+            ecnf.extend(formula_cnf.0.into_iter());
+
+            theta
         }
 
         match propagated {
@@ -248,8 +238,8 @@ impl CNF {
             },
             NNFPropagated::Inner(inner) => {
                 let mut ecnf: Vec<CNFClause> = vec![];
-                include_subformula(&mut ecnf, &inner, &mut vars);
-
+                let theta = include_subformula(&mut ecnf, &inner, &mut vars);
+                ecnf.push(CNFClause(vec![Literal::Pos(theta)]));
                 CNF(ecnf)
             }
         }
