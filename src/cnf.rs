@@ -6,7 +6,7 @@ use std::{
 use crate::{
     formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
     nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind, NNF},
-    proposition::{fresh_var, Evaluable, MissingValuation, Proposition, Valuation},
+    proposition::{fresh_var, Evaluable, MissingValuation, Proposition, UsedVars, Valuation},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,6 +125,12 @@ impl Evaluable for Literal {
             Literal::Pos(_) => var_value,
             Literal::Neg(_) => !var_value,
         })
+    }
+}
+
+impl UsedVars for CNF {
+    fn used_vars<'a, S: From<&'a String> + Eq + std::hash::Hash>(&'a self) -> HashSet<S> {
+        self.all_literals().map(Into::into).collect()
     }
 }
 

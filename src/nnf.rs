@@ -1,8 +1,8 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, hash::Hash};
 
 use crate::{
     formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
-    proposition::{Evaluable, MissingValuation, Proposition, Valuation},
+    proposition::{Evaluable, MissingValuation, Proposition, UsedVars, Valuation},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -206,6 +206,15 @@ impl Evaluable for NNFPropagated {
     }
 }
 
+impl UsedVars for NNFPropagated {
+    fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S> {
+        match self {
+            NNFPropagated::Instant(_) => HashSet::new(),
+            NNFPropagated::Inner(inner) => inner.used_vars(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NNFPropagatedInner {
     LogOp {
@@ -251,6 +260,28 @@ impl Evaluable for NNFPropagatedInner {
                 })
             }
         }
+    }
+}
+
+impl UsedVars for NNFPropagatedInner {
+    fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S> {
+        let mut vars = HashSet::new();
+        fn rec<'a, S: From<&'a String> + Eq + Hash>(
+            vars: &mut HashSet<S>,
+            nnf: &'a NNFPropagatedInner,
+        ) {
+            match nnf {
+                NNFPropagatedInner::Var(_, v) => {
+                    vars.insert(v.into());
+                }
+                NNFPropagatedInner::LogOp { phi, psi, .. } => {
+                    rec(vars, phi);
+                    rec(vars, psi);
+                }
+            }
+        }
+        rec(&mut vars, self);
+        vars
     }
 }
 

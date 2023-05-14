@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write,
+    hash::Hash,
 };
 
 use crate::formula::{BinLogOp, BinLogOpKind, Instant, LogOp, Logic};
@@ -38,6 +39,10 @@ pub(crate) trait Evaluable: std::fmt::Debug {
     ) -> Result<bool, MissingValuation<'a>>;
 }
 
+pub(crate) trait UsedVars {
+    fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S>;
+}
+
 impl Logic for Proposition {}
 
 type PLogOp = LogOp<Proposition>;
@@ -72,6 +77,29 @@ impl Evaluable for Proposition {
                 }
             },
         }
+    }
+}
+
+impl UsedVars for Proposition {
+    fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S> {
+        let mut vars = HashSet::new();
+        fn rec<'a, S: From<&'a String> + Eq + Hash>(vars: &mut HashSet<S>, prop: &'a Proposition) {
+            match prop {
+                Proposition::Instant(_) => (),
+                Proposition::Var(v) => {
+                    vars.insert(v.into());
+                }
+                Proposition::LogOp(log_op) => match log_op {
+                    LogOp::Not(p) => rec(vars, p),
+                    LogOp::Bin(BinLogOp { phi, psi, .. }) => {
+                        rec(vars, phi);
+                        rec(vars, psi);
+                    }
+                },
+            }
+        }
+        rec(&mut vars, self);
+        vars
     }
 }
 
