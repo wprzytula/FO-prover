@@ -315,6 +315,7 @@ mod tests {
     use crate::{
         nnf::NNF,
         proposition::{tests::randomly_check_equivalence, Proposition},
+        sat_solver::tests::equisatisfiable,
     };
 
     use super::*;
@@ -387,5 +388,45 @@ mod tests {
         }
     }
 
+    #[test]
+    fn ecnf_preserves_equisatisfiability() {
+        {
+            // trivial SAT
+            let trivial_nnf = NNFPropagated::Instant(Instant::T);
+            let ecnf = CNF::ECNF(trivial_nnf.clone());
+            assert!(equisatisfiable(&ecnf, &trivial_nnf));
+        }
+        {
+            // trivial UNSAT
+            let trivial_nnf = NNFPropagated::Instant(Instant::F);
+            let ecnf = CNF::ECNF(trivial_nnf.clone());
+            assert!(equisatisfiable(&ecnf, &trivial_nnf));
+        }
+        {
+            // simple UNSAT
+            let simple_nnf = NNFPropagated::Inner(NNFPropagatedInner::LogOp {
+                kind: NNFLogOpKind::And,
+                phi: Box::new(NNFPropagatedInner::Var(NNFVarKind::Pos, "p".to_owned())),
+                psi: Box::new(NNFPropagatedInner::Var(NNFVarKind::Neg, "p".to_owned())),
+            });
+            let ecnf = CNF::ECNF(simple_nnf.clone());
+            assert!(equisatisfiable(&ecnf, &simple_nnf));
+        }
+        {
+            // SAT
+            let prop = Proposition::example_sat();
+            let nnf = NNF::new(prop);
+            let nnf_propagated = nnf.clone().propagate_constants();
+            let ecnf = CNF::ECNF(nnf_propagated.clone());
+            assert!(equisatisfiable(&ecnf, &nnf_propagated));
+        }
+        {
+            // UNSAT
+            let prop = Proposition::example_unsat();
+            let nnf = NNF::new(prop);
+            let nnf_propagated = nnf.clone().propagate_constants();
+            let ecnf = CNF::ECNF(nnf_propagated.clone());
+            assert!(equisatisfiable(&ecnf, &nnf_propagated));
+        }
     }
 }
