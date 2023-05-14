@@ -287,12 +287,16 @@ impl UsedVars for NNFPropagatedInner {
 
 #[cfg(test)]
 mod tests {
-    use crate::proposition::{tests::randomly_check_equivalence, Proposition};
+    use crate::{
+        init_logger,
+        proposition::{tests::randomly_check_equivalence, Proposition},
+    };
 
     use super::*;
 
     #[test]
     fn nnf_preserves_logical_equivalence() {
+        init_logger();
         let prop = Proposition::example_sat();
         let nnf = NNF::new(prop.clone());
         assert!(randomly_check_equivalence(&prop, &nnf));
@@ -300,6 +304,7 @@ mod tests {
 
     #[test]
     fn nnf_propagated_preserves_logical_equivalence() {
+        init_logger();
         let prop = Proposition::example_sat();
         let nnf = NNF::new(prop);
         let nnf_propagated = nnf.clone().propagate_constants();

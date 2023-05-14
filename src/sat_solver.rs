@@ -376,6 +376,7 @@ pub(crate) mod tests {
     use crate::{
         cnf::{CNFClause, Literal, CNF},
         formula::Instant,
+        init_logger,
         nnf::NNF,
         proposition::Proposition,
     };
@@ -384,6 +385,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_literal_order() {
+        init_logger();
         let tests = [(
             vec![
                 Literal::Pos("x".to_owned()),
@@ -412,6 +414,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_remove_tautologies() {
+        init_logger();
         let tests = [(
             vec![
                 Literal::Pos("x".to_owned()),
@@ -433,6 +436,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_one_literal() {
+        init_logger();
         let tests = [
             (
                 // contradictory one
@@ -542,12 +546,14 @@ pub(crate) mod tests {
     #[quickcheck]
     #[ignore = "Too long"]
     fn quicktest_affirmative_negative(mut cnf: CNF) -> bool {
+        init_logger();
         cnf.affirmative_negative();
         cnf.all_literals_both_pos_and_neg()
     }
 
     #[test]
     fn best_var_is_chosen_for_resolution() {
+        init_logger();
         // (p \/ r1), (p \/ ~r2), (~r1 \/ ~r4 \/ r5), (r2 \/ r4 \/ ~r5), (~p \/ r4)
         let cnf = CNF(vec![
             CNFClause(vec![
@@ -578,6 +584,7 @@ pub(crate) mod tests {
 
     #[test]
     fn resolution_one_case() {
+        init_logger();
         // (p \/ r1), (p \/ ~r2), (p \/ r3), (~p \/ ~q1), (~p \/ q2), rem
         let mut cnf = CNF(vec![
             CNFClause(vec![
@@ -646,6 +653,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_truth_tables() {
+        init_logger();
         // let tests: &[&dyn (Evaluable + UsedVars)] = &[
         //     &NNF::Instant(Instant::F),
         // ];
@@ -679,6 +687,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_equisatisfiable() {
+        init_logger();
         let unsat = NNF::Instant(Instant::F).propagate_constants();
         let sat = NNF::Instant(Instant::T).propagate_constants();
         assert!(!equisatisfiable(&sat, &unsat));
@@ -688,6 +697,7 @@ pub(crate) mod tests {
 
     #[test]
     fn sat_solver_is_correct() {
+        init_logger();
         let tests = [
             (
                 CNF(vec![
@@ -848,6 +858,7 @@ pub(crate) mod tests {
     #[quickcheck]
     #[ignore = "Too long"]
     fn quicktest_sat_solver(cnf: CNF) -> TestResult {
+        init_logger();
         if cnf.0.len() > 10 || cnf.0.iter().map(|clause| clause.0.len()).max() > Some(5) {
             println!("QuickCheck: discarding {}", cnf);
             return TestResult::discard();

@@ -3,6 +3,8 @@ use std::{
     fmt::{Display, Write},
 };
 
+use log::debug;
+
 use crate::{
     formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
     nnf::{NNFLogOpKind, NNFPropagated, NNFPropagatedInner, NNFVarKind, NNF},
@@ -238,8 +240,17 @@ impl CNF {
             },
             NNFPropagated::Inner(inner) => {
                 let mut ecnf: Vec<CNFClause> = vec![];
+                let vars_before = vars.len();
+
                 let theta = include_subformula(&mut ecnf, &inner, &mut vars);
                 ecnf.push(CNFClause(vec![Literal::Pos(theta)]));
+
+                let vars_after = vars.len();
+                debug!(
+                    "ECNF: inflated vars num from {} to {}.",
+                    vars_before, vars_after
+                );
+
                 CNF(ecnf)
             }
         }
@@ -303,6 +314,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use crate::{
+        init_logger,
         nnf::NNF,
         proposition::{tests::randomly_check_equivalence, Proposition},
         sat_solver::tests::equisatisfiable,
@@ -360,6 +372,7 @@ mod tests {
 
     #[test]
     fn cnf_preserves_logical_equivalence() {
+        init_logger();
         {
             // SAT
             let prop = Proposition::example_sat();
@@ -380,6 +393,7 @@ mod tests {
 
     #[test]
     fn ecnf_preserves_equisatisfiability() {
+        init_logger();
         {
             // trivial SAT
             let trivial_nnf = NNFPropagated::Instant(Instant::T);

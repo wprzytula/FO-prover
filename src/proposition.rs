@@ -109,6 +109,7 @@ pub(crate) mod tests {
 
     use super::*;
 
+    use log::trace;
     use quickcheck::Arbitrary;
     use rand::Rng;
 
@@ -174,9 +175,13 @@ pub(crate) mod tests {
         let phi_val = phi.evaluate(valuation)?;
         let psi_val = psi.evaluate(valuation)?;
         let res = psi_val == phi_val;
-        println!(
+        trace!(
             "Evaluated:\nphi={:#?} to {}, \npsi={:#?} to {}\nin valuation: {:#?}",
-            phi, phi_val, psi, psi_val, valuation
+            phi,
+            phi_val,
+            psi,
+            psi_val,
+            valuation
         );
         Ok(res)
     }
