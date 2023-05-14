@@ -368,14 +368,19 @@ impl SatSolver {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::collections::HashSet;
 
     use quickcheck::TestResult;
 
-    use crate::cnf::{CNFClause, Literal, CNF};
+    use crate::{
+        cnf::{CNFClause, Literal, CNF},
+        formula::Instant,
+        nnf::NNF,
+        proposition::Proposition,
+    };
 
-    use super::{SatSolver, SolverJudgement};
+    use super::*;
 
     #[test]
     fn test_literal_order() {
@@ -637,6 +642,48 @@ mod tests {
 
         cnf.resolve("p");
         assert_eq!(cnf.into_set(), expected.into_set());
+    }
+
+    #[test]
+    fn test_truth_tables() {
+        // let tests: &[&dyn (Evaluable + UsedVars)] = &[
+        //     &NNF::Instant(Instant::F),
+        // ];
+        let trivial_unsat = NNF::Instant(Instant::F).propagate_constants();
+        let trivial_sat = NNF::Instant(Instant::T).propagate_constants();
+        assert_eq!(
+            SatSolver::solve_by_truth_tables(&trivial_unsat).0,
+            SolverJudgement::Unsatisfiable
+        );
+        assert_eq!(
+            SatSolver::solve_by_truth_tables(&trivial_sat).0,
+            SolverJudgement::Satisfiable
+        );
+
+        assert_eq!(
+            SatSolver::solve_by_truth_tables(&Proposition::example_unsat()).0,
+            SolverJudgement::Unsatisfiable
+        );
+        assert_eq!(
+            SatSolver::solve_by_truth_tables(&Proposition::example_sat()).0,
+            SolverJudgement::Satisfiable
+        );
+    }
+
+    pub(crate) fn equisatisfiable(
+        phi: &(impl Evaluable + UsedVars),
+        psi: &(impl Evaluable + UsedVars),
+    ) -> bool {
+        SatSolver::solve_by_truth_tables(phi).0 == SatSolver::solve_by_truth_tables(psi).0
+    }
+
+    #[test]
+    fn test_equisatisfiable() {
+        let unsat = NNF::Instant(Instant::F).propagate_constants();
+        let sat = NNF::Instant(Instant::T).propagate_constants();
+        assert!(!equisatisfiable(&sat, &unsat));
+        assert!(equisatisfiable(&sat, &sat));
+        assert!(equisatisfiable(&unsat, &unsat));
     }
 
     #[test]
