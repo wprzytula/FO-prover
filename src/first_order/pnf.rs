@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::propositional::{nnf::NNFLogOpKind, proposition::UsedVars};
 
@@ -124,6 +124,125 @@ impl NNFPropagatedInner {
                     vars,
                 )
             }
+        }
+    }
+}
+
+impl Logic for SkolemisedFormula {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SkolemisedFormula {
+    Instant(Instant),
+    Inner {
+        // Order is irrelevant (in PNF with universal quantifiers only)
+        universally_quantified_vars: Vec<String>,
+        ksi: NNFQuantifierFreeInner,
+    },
+}
+
+fn skolem_function(var: &String) -> String {
+    format!("_sk_{var}_")
+}
+
+impl NNFPropagated {
+    pub(crate) fn skolemise(self) -> SkolemisedFormula {
+        // TODO: miniscoping
+        let mut miniscoped = self;
+        let mut universally_quantified_vars = HashSet::new();
+        let mut skolem_fns = HashMap::new();
+        match &mut miniscoped {
+            NNFPropagated::Instant(_) => (),
+            NNFPropagated::Inner(inner) => {
+                inner.skolemise(&mut universally_quantified_vars, &mut skolem_fns)
+            }
+        };
+
+        let pnf = miniscoped.into_PNF();
+        match pnf {
+            PNF::Instant(i) => SkolemisedFormula::Instant(i),
+            PNF::Inner(PNFInner {
+                quantified_vars,
+                ksi,
+            }) => {
+                let universally_quantified_vars = quantified_vars
+                    .into_iter()
+                    .map(|(kind, var)| {
+                        assert!(matches!(kind, QuantifierKind::Forall));
+                        var
+                    })
+                    .collect();
+                SkolemisedFormula::Inner {
+                    universally_quantified_vars,
+                    ksi,
+                }
+            }
+        }
+    }
+}
+
+impl NNFPropagatedInner {
+    fn skolemise(
+        &mut self,
+        universally_quantified_vars: &mut HashSet<String>,
+        skolem_fns: &mut HashMap<String, (String, Vec<String>)>,
+    ) {
+        const MOCK_REL: NNFPropagatedInner = NNFPropagatedInner::Rel {
+            kind: NNFRelKind::Neg,
+            name: String::new(),
+            terms: Vec::new(),
+        };
+
+        match self {
+            NNFPropagatedInner::LogOp { phi, psi, .. } => {
+                phi.skolemise(universally_quantified_vars, skolem_fns);
+                psi.skolemise(universally_quantified_vars, skolem_fns);
+            }
+            NNFPropagatedInner::Quantified { kind, var, phi } => {
+                match kind {
+                    QuantifierKind::Exists => {
+                        let skolem_fn_name = skolem_function(var);
+                        let terms = Vec::from_iter(universally_quantified_vars.iter().cloned());
+                        assert!(skolem_fns
+                            .insert(var.clone(), (skolem_fn_name, terms))
+                            .is_none());
+                    }
+                    QuantifierKind::Forall => {
+                        assert!(universally_quantified_vars.insert(var.clone()));
+                    }
+                }
+                phi.skolemise(universally_quantified_vars, skolem_fns);
+
+                match kind {
+                    QuantifierKind::Exists => {
+                        // Remember to delete this soon
+                        skolem_fns.remove(var);
+                        let phi = std::mem::replace(phi.as_mut(), MOCK_REL);
+                        *self = phi;
+                    }
+                    QuantifierKind::Forall => {
+                        universally_quantified_vars.remove(var.as_str());
+                    }
+                }
+            }
+            NNFPropagatedInner::Rel { terms, .. } => {
+                terms.iter_mut().for_each(|term| term.skolemise(skolem_fns))
+            }
+        }
+    }
+}
+
+impl Term {
+    fn skolemise(&mut self, skolem_fns: &HashMap<String, (String, Vec<String>)>) {
+        match self {
+            Term::Var(var) => {
+                if let Some((skolem_fn, terms)) = skolem_fns.get(var) {
+                    *self = Term::Fun(
+                        skolem_fn.clone(),
+                        Vec::from_iter(terms.iter().map(|var| Term::Var(var.clone()))),
+                    );
+                }
+            }
+            Term::Fun(_, terms) => terms.iter_mut().for_each(|term| term.skolemise(skolem_fns)),
         }
     }
 }
