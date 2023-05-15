@@ -3,7 +3,7 @@ use std::{collections::HashSet, hash::Hash};
 use anyhow::{bail, Context};
 use bnf::{ParseTree, ParseTreeNode};
 
-use crate::propositional::proposition::UsedVars;
+use crate::propositional::proposition::{fresh_var, UsedVars};
 
 pub(crate) trait Logic {}
 impl Logic for Formula {}
@@ -152,6 +152,35 @@ impl RenameVar for Term {
 impl Formula {
     pub(crate) fn not(phi: Self) -> Self {
         Self::LogOp(LogOp::Not(Box::new(phi)))
+    }
+
+    fn free_vars(&self) -> HashSet<String> {
+        let mut free = HashSet::new();
+        let mut captured = HashSet::new();
+        fn rec<'a>(
+            formula: &'a Formula,
+            free: &mut HashSet<String>,
+            captured: &mut HashSet<&'a str>,
+        ) {
+            match formula {
+                Formula::Instant(_) => (),
+                Formula::LogOp(LogOp::Bin(BinLogOp { phi, psi, .. })) => {
+                    rec(phi, free, captured);
+                    rec(psi, free, captured);
+                }
+                Formula::LogOp(LogOp::Not(phi)) => rec(phi, free, captured),
+                Formula::Rel(Rel { terms, .. }) => {
+                    terms.iter().for_each(|term| term.free_vars(free, captured))
+                }
+                Formula::Quantified(Quantifier { var, phi, .. }) => {
+                    captured.insert(var);
+                    rec(phi, free, captured);
+                    captured.remove(var.as_str());
+                }
+            }
+        }
+        rec(self, &mut free, &mut captured);
+        free
     }
 }
 
