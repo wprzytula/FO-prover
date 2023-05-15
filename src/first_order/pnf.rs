@@ -140,8 +140,8 @@ pub(crate) enum SkolemisedFormula {
     },
 }
 
-fn skolem_function(var: &String) -> String {
-    format!("_sk_{var}_")
+fn skolem_function(var: &str) -> String {
+    format!("_sk_{}_", var)
 }
 
 impl NNFPropagated {
@@ -244,5 +244,41 @@ impl Term {
             }
             Term::Fun(_, terms) => terms.iter_mut().for_each(|term| term.skolemise(skolem_fns)),
         }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use crate::first_order::formula::Formula;
+
+    use super::*;
+
+    #[test]
+    fn skolemisation() {
+        // Exists "x" (Implies (Rel "D" [Var "x"]) (Forall "y" (Rel "D" [Var "y"])))
+        let formula = Formula::not(Formula::drinker_paradox());
+        let expected_skolem = SkolemisedFormula::Inner {
+            universally_quantified_vars: vec!["x".to_owned()],
+            ksi: NNFQuantifierFreeInner::LogOp {
+                kind: NNFLogOpKind::And,
+                phi: Box::new(NNFQuantifierFreeInner::Rel {
+                    kind: NNFRelKind::Pos,
+                    name: "D".to_owned(),
+                    terms: vec![Term::Var("x".to_owned())],
+                }),
+                psi: Box::new(NNFQuantifierFreeInner::Rel {
+                    kind: NNFRelKind::Neg,
+                    name: "D".to_owned(),
+                    terms: vec![Term::Fun(
+                        skolem_function("y"),
+                        vec![Term::Var("x".to_owned())],
+                    )],
+                }),
+            },
+        };
+        assert_eq!(
+            formula.into_nnf().propagate_constants().skolemise(),
+            expected_skolem
+        );
     }
 }
