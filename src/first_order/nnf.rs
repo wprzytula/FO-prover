@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     first_order::formula::{BinLogOp, BinLogOpKind, Formula, LogOp, Quantifier},
-    propositional::nnf::NNFLogOpKind,
+    propositional::{nnf::NNFLogOpKind, proposition::fresh_var},
 };
 
 use super::formula::{Instant, QuantifierKind, RenameVar, Term};
@@ -170,6 +170,16 @@ impl NNFPropagated {
         }
         free
     }
+
+    // Returns all vars in the formula.
+    pub(crate) fn make_vars_unique(&mut self) -> HashSet<String> {
+        let mut vars = self.free_vars();
+        match self {
+            NNFPropagated::Instant(_) => (),
+            NNFPropagated::Inner(inner) => inner.make_vars_unique(&mut vars),
+        }
+        vars
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -204,6 +214,27 @@ impl NNFPropagatedInner {
                 captured.insert(var);
                 phi.free_vars(free, captured);
                 captured.remove(var.as_str());
+            }
+        }
+    }
+
+    fn make_vars_unique(&mut self, vars: &mut HashSet<String>) {
+        match self {
+            NNFPropagatedInner::Rel { .. } => (),
+            NNFPropagatedInner::LogOp { phi, psi, .. } => {
+                phi.make_vars_unique(vars);
+                psi.make_vars_unique(vars);
+            }
+            NNFPropagatedInner::Quantified { var, phi, .. } => {
+                if vars.contains(var) {
+                    // We have to rename `var` to a fresh unique var name.
+                    let fresh = fresh_var(vars);
+                    phi.rename(var, &fresh);
+                    vars.insert(fresh);
+                } else {
+                    vars.insert(var.clone());
+                }
+                phi.make_vars_unique(vars);
             }
         }
     }
