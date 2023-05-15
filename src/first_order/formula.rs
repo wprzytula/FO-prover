@@ -149,6 +149,12 @@ impl RenameVar for Term {
     }
 }
 
+impl Formula {
+    pub(crate) fn not(phi: Self) -> Self {
+        Self::LogOp(LogOp::Not(Box::new(phi)))
+    }
+}
+
 mod parse {
     use super::*;
 

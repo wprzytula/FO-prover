@@ -11,6 +11,8 @@ use propositional::cnf::CNF;
 use propositional::nnf::NNF;
 use propositional::sat_solver::SatSolver;
 
+use crate::first_order::formula::Formula;
+
 pub(crate) mod first_order;
 pub(crate) mod propositional;
 
@@ -28,7 +30,8 @@ fn main() -> Result<()> {
     };
 
     let formula = parser.parse(&input)?;
-    let nnf = formula.into_nnf();
+    let negated_formula = Formula::not(formula);
+    let nnf = negated_formula.into_nnf();
     let nnf_propagated = nnf.propagate_constants();
     let _pnf = nnf_propagated.into_PNF();
 
