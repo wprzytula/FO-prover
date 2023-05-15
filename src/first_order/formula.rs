@@ -132,6 +132,23 @@ impl UsedVars for Term {
     }
 }
 
+pub(crate) trait RenameVar {
+    fn rename(&mut self, var: &str, new_name: &String);
+}
+
+impl RenameVar for Term {
+    fn rename(&mut self, var: &str, new_name: &String) {
+        match self {
+            Term::Var(v) => {
+                if var == v {
+                    *v = new_name.clone();
+                }
+            }
+            Term::Fun(_name, terms) => terms.iter_mut().for_each(|term| term.rename(var, new_name)),
+        }
+    }
+}
+
 mod parse {
     use super::*;
 

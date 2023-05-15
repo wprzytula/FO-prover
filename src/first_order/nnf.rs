@@ -5,7 +5,7 @@ use crate::{
     propositional::nnf::NNFLogOpKind,
 };
 
-use super::formula::{Instant, QuantifierKind, Term};
+use super::formula::{Instant, QuantifierKind, RenameVar, Term};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NNF {
@@ -170,7 +170,6 @@ impl NNFPropagated {
         }
         free
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -208,5 +207,27 @@ impl NNFPropagatedInner {
             }
         }
     }
+}
 
+impl RenameVar for NNFPropagatedInner {
+    fn rename(&mut self, var: &str, new_name: &String) {
+        match self {
+            NNFPropagatedInner::LogOp { phi, psi, .. } => {
+                phi.rename(var, new_name);
+                psi.rename(var, new_name);
+            }
+            NNFPropagatedInner::Rel { terms, .. } => {
+                terms.iter_mut().for_each(|term| term.rename(var, new_name))
+            }
+            NNFPropagatedInner::Quantified {
+                var: quantifier_var,
+                phi,
+                ..
+            } => {
+                if var != quantifier_var {
+                    phi.rename(var, new_name);
+                }
+            }
+        }
+    }
 }
