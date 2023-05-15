@@ -41,6 +41,9 @@ pub(crate) trait Evaluable: std::fmt::Debug {
 
 pub(crate) trait UsedVars {
     fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S>;
+    fn add_used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self, vars: &mut HashSet<S>) {
+        vars.extend(self.used_vars());
+    }
 }
 
 impl Logic for Proposition {}
