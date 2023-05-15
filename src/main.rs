@@ -27,7 +27,10 @@ fn main() -> Result<()> {
         buf
     };
 
-    let _formula = parser.parse(&input)?;
+    let formula = parser.parse(&input)?;
+    let nnf = formula.into_nnf();
+    let nnf_propagated = nnf.propagate_constants();
+
     let is_tautology = false; // FIXME
     print!("{}", is_tautology as u8);
 

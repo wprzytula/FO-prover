@@ -33,6 +33,12 @@ pub(crate) enum NNFRelKind {
     Neg,
 }
 
+impl Formula {
+    pub(crate) fn into_nnf(self) -> NNF {
+        NNF::new(self)
+    }
+}
+
 impl NNF {
     pub(crate) fn new(p: Formula) -> Self {
         fn rec(phi: Formula, positive: bool) -> NNF {
