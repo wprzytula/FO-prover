@@ -233,6 +233,22 @@ impl Formula {
         rec(self, &mut free, &mut captured);
         free
     }
+
+    pub(crate) fn close_universally(&mut self) {
+        let mut vars = self.used_vars();
+        let free_vars = self.free_vars();
+        for free in free_vars {
+            // Introduce fresh not to introduce name collisions on other paths.
+            let fresh = fresh_var(&mut vars);
+            let mut formula = std::mem::replace(self, Formula::Instant(Instant::F));
+            formula.rename(&free, &fresh);
+            *self = Self::Quantified(Quantifier {
+                kind: QuantifierKind::Forall,
+                var: fresh,
+                phi: Box::new(formula),
+            })
+        }
+    }
 }
 
 #[cfg(test)]
