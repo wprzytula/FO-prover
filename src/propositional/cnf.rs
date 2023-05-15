@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     fmt::{Display, Write},
+    hash::Hash,
 };
 
 use log::debug;
@@ -128,7 +129,7 @@ impl Evaluable for Literal {
 }
 
 impl UsedVars for CNF {
-    fn used_vars<'a, S: From<&'a String> + Eq + std::hash::Hash>(&'a self) -> HashSet<S> {
+    fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S> {
         self.all_literals().map(Into::into).collect()
     }
 }
