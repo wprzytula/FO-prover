@@ -149,6 +149,57 @@ impl RenameVar for Term {
     }
 }
 
+impl RenameVar for Formula {
+    fn rename(&mut self, var: &str, new_name: &String) {
+        match self {
+            Formula::Instant(_) => (),
+            Formula::LogOp(LogOp::Not(phi)) => phi.rename(var, new_name),
+            Formula::LogOp(LogOp::Bin(BinLogOp { phi, psi, .. })) => {
+                phi.rename(var, new_name);
+                psi.rename(var, new_name);
+            }
+            Formula::Rel(Rel { terms, .. }) => {
+                terms.iter_mut().for_each(|term| term.rename(var, new_name))
+            }
+            Formula::Quantified(Quantifier {
+                var: quantified_var,
+                phi,
+                ..
+            }) => {
+                if var != quantified_var {
+                    phi.rename(var, new_name);
+                }
+            }
+        }
+    }
+}
+
+impl UsedVars for Formula {
+    fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S> {
+        let mut vars = HashSet::new();
+        self.add_used_vars(&mut vars);
+        vars
+    }
+
+    fn add_used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self, vars: &mut HashSet<S>) {
+        match self {
+            Formula::Instant(_) => (),
+            Formula::LogOp(LogOp::Not(phi)) => phi.add_used_vars(vars),
+            Formula::LogOp(LogOp::Bin(BinLogOp { phi, psi, .. })) => {
+                phi.add_used_vars(vars);
+                psi.add_used_vars(vars);
+            }
+            Formula::Rel(Rel { terms, .. }) => {
+                terms.iter().for_each(|term| term.add_used_vars(vars))
+            }
+            Formula::Quantified(Quantifier { var, phi, .. }) => {
+                vars.insert(var.into());
+                phi.add_used_vars(vars);
+            }
+        }
+    }
+}
+
 impl Formula {
     pub(crate) fn not(phi: Self) -> Self {
         Self::LogOp(LogOp::Not(Box::new(phi)))
