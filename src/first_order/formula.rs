@@ -1,5 +1,9 @@
+use std::{collections::HashSet, hash::Hash};
+
 use anyhow::{bail, Context};
 use bnf::{ParseTree, ParseTreeNode};
+
+use crate::propositional::proposition::UsedVars;
 
 pub(crate) trait Logic {}
 impl Logic for Formula {}
@@ -89,6 +93,26 @@ pub(crate) struct Rel {
 pub(crate) enum Term {
     Var(String),
     Fun(String, Vec<Term>),
+}
+
+impl UsedVars for Term {
+    fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S> {
+        let mut vars = HashSet::new();
+        self.add_used_vars(&mut vars);
+        vars
+    }
+
+    fn add_used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self, vars: &mut HashSet<S>) {
+        fn rec<'a, S: From<&'a String> + Eq + Hash>(vars: &mut HashSet<S>, term: &'a Term) {
+            match term {
+                Term::Var(v) => {
+                    vars.insert(v.into());
+                }
+                Term::Fun(_name, terms) => terms.iter().for_each(|term| rec(vars, term)),
+            }
+        }
+        rec(vars, self);
+    }
 }
 
 mod parse {
