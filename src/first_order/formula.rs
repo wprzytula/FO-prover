@@ -155,6 +155,21 @@ impl Formula {
     }
 }
 
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::first_order::parser::Parser;
+
+    const DRINKER_PARADOX: &str =
+        r#"Exists "x" (Implies (Rel "D" [Var "x"]) (Forall "y" (Rel "D" [Var "y"])))"#;
+    impl Formula {
+        pub(crate) fn drinker_paradox() -> Self {
+            let parser = Parser::new().unwrap();
+            parser.parse(DRINKER_PARADOX).unwrap()
+        }
+    }
+}
+
 mod parse {
     use super::*;
 
@@ -446,9 +461,6 @@ mod parse {
             let parser = Parser::new().unwrap();
 
             {
-                let _drinker_paradox =
-                    r#"Exists "x" (Implies (Rel "D" [Var "x"]) (Forall "y" (Rel "D" [Var "y"])))"#;
-
                 let formulas = [
                     ("T", Formula::Instant(T)),
                     (
