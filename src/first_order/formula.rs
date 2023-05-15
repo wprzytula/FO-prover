@@ -95,6 +95,23 @@ pub(crate) enum Term {
     Fun(String, Vec<Term>),
 }
 
+impl Term {
+    pub(crate) fn free_vars<'a>(
+        &'a self,
+        free: &mut HashSet<String>,
+        captured: &mut HashSet<&'a str>,
+    ) {
+        match self {
+            Term::Var(var) => {
+                if !captured.contains(var.as_str()) {
+                    free.insert(var.clone());
+                }
+            }
+            Term::Fun(_name, terms) => terms.iter().for_each(|term| term.free_vars(free, captured)),
+        }
+    }
+}
+
 impl UsedVars for Term {
     fn used_vars<'a, S: From<&'a String> + Eq + Hash>(&'a self) -> HashSet<S> {
         let mut vars = HashSet::new();

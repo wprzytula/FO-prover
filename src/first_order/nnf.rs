@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{
     first_order::formula::{BinLogOp, BinLogOpKind, Formula, LogOp, Quantifier},
     propositional::nnf::NNFLogOpKind,
@@ -158,6 +160,18 @@ pub(crate) enum NNFPropagated {
     Instant(Instant),
     Inner(NNFPropagatedInner),
 }
+impl NNFPropagated {
+    fn free_vars(&self) -> HashSet<String> {
+        let mut free = HashSet::new();
+        let mut captured = HashSet::new();
+        match self {
+            NNFPropagated::Instant(_) => (),
+            NNFPropagated::Inner(inner) => inner.free_vars(&mut free, &mut captured),
+        }
+        free
+    }
+
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NNFPropagatedInner {
@@ -176,4 +190,23 @@ pub(crate) enum NNFPropagatedInner {
         var: String,
         phi: Box<Self>,
     },
+}
+impl NNFPropagatedInner {
+    fn free_vars<'a>(&'a self, free: &mut HashSet<String>, captured: &mut HashSet<&'a str>) {
+        match self {
+            NNFPropagatedInner::LogOp { phi, psi, .. } => {
+                phi.free_vars(free, captured);
+                psi.free_vars(free, captured);
+            }
+            NNFPropagatedInner::Rel { terms, .. } => {
+                terms.iter().for_each(|term| term.free_vars(free, captured))
+            }
+            NNFPropagatedInner::Quantified { var, phi, .. } => {
+                captured.insert(var);
+                phi.free_vars(free, captured);
+                captured.remove(var.as_str());
+            }
+        }
+    }
+
 }
