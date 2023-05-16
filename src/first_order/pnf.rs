@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::propositional::{nnf::NNFLogOpKind, proposition::UsedVars};
 
 use super::{
-    formula::{Instant, Logic, QuantifierKind, RenameVar, Term},
+    formula::{Instant, Logic, QuantifierKind, Rel, RenameVar, Term},
     nnf::{NNFPropagated, NNFPropagatedInner, NNFRelKind},
 };
 
@@ -32,8 +32,7 @@ pub(crate) enum NNFQuantifierFreeInner {
     },
     Rel {
         kind: NNFRelKind,
-        name: String,
-        terms: Vec<Term>,
+        rel: Rel,
     },
 }
 
@@ -44,9 +43,10 @@ impl RenameVar for NNFQuantifierFreeInner {
                 phi.rename(var, new_name);
                 psi.rename(var, new_name);
             }
-            NNFQuantifierFreeInner::Rel { terms, .. } => {
-                terms.iter_mut().for_each(|term| term.rename(var, new_name))
-            }
+            NNFQuantifierFreeInner::Rel {
+                rel: Rel { terms, .. },
+                ..
+            } => terms.iter_mut().for_each(|term| term.rename(var, new_name)),
         }
     }
 }
@@ -77,7 +77,10 @@ impl NNFPropagatedInner {
                 (
                     PNFInner {
                         quantified_vars: Vec::new(),
-                        ksi: NNFQuantifierFreeInner::Rel { kind, name, terms },
+                        ksi: NNFQuantifierFreeInner::Rel {
+                            kind,
+                            rel: Rel { name, terms },
+                        },
                     },
                     vars,
                 )
@@ -263,16 +266,20 @@ pub(crate) mod tests {
                 kind: NNFLogOpKind::And,
                 phi: Box::new(NNFQuantifierFreeInner::Rel {
                     kind: NNFRelKind::Pos,
-                    name: "D".to_owned(),
-                    terms: vec![Term::Var("x".to_owned())],
+                    rel: Rel {
+                        name: "D".to_owned(),
+                        terms: vec![Term::Var("x".to_owned())],
+                    },
                 }),
                 psi: Box::new(NNFQuantifierFreeInner::Rel {
                     kind: NNFRelKind::Neg,
-                    name: "D".to_owned(),
-                    terms: vec![Term::Fun(
-                        skolem_function("y"),
-                        vec![Term::Var("x".to_owned())],
-                    )],
+                    rel: Rel {
+                        name: "D".to_owned(),
+                        terms: vec![Term::Fun(
+                            skolem_function("y"),
+                            vec![Term::Var("x".to_owned())],
+                        )],
+                    },
                 }),
             },
         };
