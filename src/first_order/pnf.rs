@@ -54,7 +54,6 @@ impl RenameVar for NNFQuantifierFreeInner {
 impl NNFPropagated {
     #[allow(non_snake_case)]
     pub(crate) fn into_PNF(mut self) -> PNF {
-        let all_vars = self.make_vars_unique();
         match self {
             NNFPropagated::Instant(i) => PNF::Instant(i),
             NNFPropagated::Inner(inner) => PNF::Inner(inner.into_PNF().0),
@@ -148,6 +147,7 @@ impl NNFPropagated {
     pub(crate) fn skolemise(self) -> SkolemisedFormula {
         // TODO: miniscoping
         let mut miniscoped = self;
+        let all_vars = miniscoped.make_vars_unique();
         let mut universally_quantified_vars = HashSet::new();
         let mut skolem_fns = HashMap::new();
         match &mut miniscoped {

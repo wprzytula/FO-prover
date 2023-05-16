@@ -236,6 +236,7 @@ impl NNFPropagatedInner {
                     // We have to rename `var` to a fresh unique var name.
                     let fresh = fresh_var(vars);
                     phi.rename(var, &fresh);
+                    *var = fresh.clone();
                     vars.insert(fresh);
                 } else {
                     vars.insert(var.clone());
