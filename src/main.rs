@@ -11,6 +11,7 @@ use propositional::cnf::CNF;
 use propositional::nnf::NNF;
 use propositional::sat_solver::SatSolver;
 
+use crate::first_order::decider::TautologyDecider;
 use crate::first_order::formula::Formula;
 
 pub(crate) mod first_order;
@@ -29,23 +30,8 @@ fn main() -> Result<()> {
         buf
     };
 
-    let mut formula = parser.parse(&input)?;
-
-    // 1. Convert ¬ϕ to an equisatisfiable Skolem normal form ψ ≡ ∀x1 , . . . , xn · ξ,
-    // with ξ quantifier-free.
-    formula.close_universally();
-    let negated_formula = Formula::not(formula);
-    let nnf = negated_formula.into_nnf();
-    let nnf_propagated = nnf.propagate_constants();
-    let _skolemised = nnf_propagated.skolemise();
-
-    // 2. Verify that ψ is unsatisfiable: By Herbrand’s theorem, it suffices to find n-
-    // tuples of ground terms ū1 , . . . , ūm (i.e., elements of the Herbrand universe)
-    // s.t.
-    // ξ[x̄ 7→ ū1 ] ∧ · · · ∧ ξ[x̄ 7→ ūm ]
-    // is unsatisfiable.
-
-    let is_tautology = false; // FIXME
+    let formula = parser.parse(&input)?;
+    let is_tautology = TautologyDecider::is_tautology(formula);
     print!("{}", is_tautology as u8);
 
     // Just to silence "unused":
@@ -60,6 +46,8 @@ mod tests {
     use std::{fs::read_dir, path::Path};
 
     use log::info;
+
+    use super::*;
 
     pub(crate) fn for_each_external_test(mut run: impl FnMut(&str)) {
         let test_path = Path::new("/home/xps15/Studia/Sem8/Logika/Laby/Zal/FO-prover/tests");
@@ -90,5 +78,18 @@ mod tests {
                 run(&input_str);
             }
         }
+    }
+
+    #[test]
+    fn workchain() {
+        let parser = Parser::new().unwrap();
+        for_each_external_test(|input| {
+            let mut formula = parser.parse(&input).unwrap();
+            formula.close_universally();
+            let negated_formula = Formula::not(formula);
+            let nnf = negated_formula.into_nnf();
+            let nnf_propagated = nnf.propagate_constants();
+            let _pnf = nnf_propagated.into_PNF();
+        })
     }
 }
