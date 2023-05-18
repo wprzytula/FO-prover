@@ -269,3 +269,19 @@ impl RenameVar for NNFPropagatedInner {
         }
     }
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use crate::first_order::formula::Formula;
+
+    use super::*;
+
+    #[test]
+    fn nnf() {
+        // Exists "x" (Implies (Rel "D" [Var "x"]) (Forall "y" (Rel "D" [Var "y"])))
+        let formula = Formula::drinker_paradox();
+        dbg!(formula.into_nnf());
+
+        // assert_eq!(formula.into_nnf(), expected);
+    }
+}
