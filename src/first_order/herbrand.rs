@@ -4,7 +4,8 @@ use std::{
     vec,
 };
 
-use log::debug;
+use itertools::Itertools;
+use log::{debug, info, trace};
 
 use crate::{
     first_order::{formula::Rel, pnf::NNFQuantifierFreeInner},
@@ -16,10 +17,8 @@ use super::{formula::Term, nnf::NNFRelKind, pnf::SkolemisedFormula};
 type Arity = usize;
 
 #[derive(Debug)]
-struct Signature {
-    per_name: HashMap<String, Arity>,
+pub(crate) struct Signature {
     per_arity: HashMap<Arity, HashSet<String>>,
-    empty_set: HashSet<String>,
 }
 
 impl Term {
@@ -27,7 +26,6 @@ impl Term {
         match self {
             Term::Var(_) => (),
             Term::Fun(name, terms) => {
-                signature.per_name.insert(name.clone(), terms.len());
                 signature
                     .per_arity
                     .entry(terms.len())
@@ -39,7 +37,7 @@ impl Term {
 }
 
 impl SkolemisedFormula {
-    fn signature(&self) -> Signature {
+    pub(crate) fn signature(&self) -> Signature {
         let mut signature = Signature::empty();
 
         fn rec(signature: &mut Signature, ksi: &NNFQuantifierFreeInner) {
@@ -76,68 +74,23 @@ impl SkolemisedFormula {
 impl Signature {
     fn empty() -> Self {
         Self {
-            per_name: HashMap::new(),
             per_arity: HashMap::new(),
-            empty_set: HashSet::new(),
         }
     }
 
     fn constants(&self) -> Option<&HashSet<String>> {
-        self.per_name
-            .iter()
-            .filter_map(|(name, arity)| (*arity == 0).then_some(name));
         self.per_arity.get(&0)
     }
 
-    fn arity_iter<'a>(&'a self) -> impl Iterator<Item = (Arity, String)> + Clone + 'a {
+    fn arity_iter(&self) -> impl Iterator<Item = (Arity, String)> + Clone + '_ {
         self.per_arity
             .iter()
             .filter(|(arity, _)| **arity > 0)
             .flat_map(|(arity, fns)| fns.iter().map(|func| (*arity, func.clone())))
     }
 
-    fn herbrands_universe_iter<'a>(
-        &'a self,
-    ) -> HerbrandsUniverseIter<'a, impl Iterator<Item = (Arity, String)> + Clone + 'a> {
-        HerbrandsUniverseIter::new(self, self.arity_iter())
-    }
-
-    fn herbrands_universe<'a>(&'a self) -> impl Iterator<Item = GroundTerm> + 'a {
-        let constants = self
-            .constants()
-            .unwrap()
-            .iter()
-            .map(|constant| GroundTerm::constant(constant.clone()));
-
-        let single_applications = self
-            .constants()
-            .unwrap()
-            .iter()
-            .map(|constant| {
-                let unary_fns = self.per_arity.get(&1).unwrap_or(&self.empty_set);
-                unary_fns.iter().map(|unary_fn| GroundTerm {
-                    fun_name: unary_fn.clone(),
-                    ground_terms: vec![GroundTerm::constant(constant.clone())],
-                })
-            })
-            .flatten();
-
-        let applications = (0..)
-            .into_iter()
-            .map(move |n| {
-                single_applications.clone().map(move |mut term| {
-                    for _ in 0..n {
-                        term = GroundTerm {
-                            fun_name: term.fun_name.clone(),
-                            ground_terms: vec![term],
-                        }
-                    }
-                    term
-                })
-            })
-            .flatten();
-
-        constants.chain(applications)
+    pub(crate) fn herbrands_universe(&self) -> impl Iterator<Item = GroundTerm> + '_ {
+        HerbrandsUniverseIter::new(self, self.arity_iter()).unique()
     }
 }
 
@@ -150,13 +103,13 @@ struct LowerLevelElemSelector {
 
 impl LowerLevelElemSelector {
     fn new(arity: Arity, lower_level_terms: &Vec<GroundTerm>) -> Self {
-        debug!(
+        trace!(
             "Selector::new(arity: {}, lower_level_terms: {}",
             arity,
             GroundTermVecDisplay(lower_level_terms)
         );
         assert!(arity > 0);
-        assert!(lower_level_terms.len() > 0);
+        assert!(!lower_level_terms.is_empty());
         Self {
             arity,
             idcs: vec![0; arity],
@@ -176,7 +129,7 @@ impl LowerLevelElemSelector {
                     variation.push(lower_level_terms[lower_level_term_idx].clone());
                 }
                 debug_assert!(variation.len() == self.arity);
-                debug!("Selector: selected {}", GroundTermVecDisplay(&variation));
+                trace!("Selector: selected {}", GroundTermVecDisplay(&variation));
                 variation
             });
             self.increment();
@@ -189,6 +142,7 @@ impl LowerLevelElemSelector {
         if self.idcs[0] + 1 < self.lower_level_terms_len {
             self.idcs[0] += 1;
         } else {
+            self.idcs[0] = 0;
             // handle carry
             let mut carry_handled = false;
             for i in 1..self.arity {
@@ -206,9 +160,9 @@ impl LowerLevelElemSelector {
             }
         }
         if self.depleted {
-            debug!("Selector got depleted.");
+            trace!("Selector got depleted.");
         } else {
-            debug!("Incremented Selector to: {:?}", &self.idcs);
+            trace!("Incremented Selector to: {:?}", &self.idcs);
         }
     }
 }
@@ -271,13 +225,18 @@ impl<'sig, ArityIter: Iterator<Item = (Arity, String)> + Clone> Iterator
                 } else if self.signature.per_arity.len() > 1
                 /*Functional symbols also present*/
                 {
+                    info!("Herbrand's Universe: proceeding to the functions level. Appending constants: {}\n", GroundTermVecDisplay(consts));
                     let mut arity_iter = self.arity_iter_backup.clone();
                     let curr_fn = arity_iter.next().unwrap();
-                    let curr_fn_selector = LowerLevelElemSelector::new(curr_fn.0, &consts);
+                    debug!(
+                        "Herbrand's Universe: moving to another symbol: {}/{}",
+                        curr_fn.1, curr_fn.0
+                    );
+                    let curr_fn_selector = LowerLevelElemSelector::new(curr_fn.0, consts);
                     self.state = HerbrandsUniverseIterState::NextLevelTerms {
                         arity_iter,
-                        lower_level_terms: std::mem::take(consts),
                         this_level_terms: Vec::new(),
+                        lower_level_terms: std::mem::take(consts),
                         curr_fn,
                         curr_fn_selector,
                     };
@@ -306,17 +265,24 @@ impl<'sig, ArityIter: Iterator<Item = (Arity, String)> + Clone> Iterator
                     // Current symbol is depleted; try fetching another.
                     if let Some(new_fn) = arity_iter.next() {
                         // Set selector for the next symbol.
+                        debug!(
+                            "Herbrand's Universe: moving to another symbol: {}/{}",
+                            new_fn.1, new_fn.0
+                        );
                         *curr_fn_selector =
                             LowerLevelElemSelector::new(new_fn.0, lower_level_terms);
                         *curr_fn = new_fn;
                         self.next()
                     } else {
                         // All symbol depleted. Proceed to the next level.
-                        std::mem::swap(lower_level_terms, this_level_terms);
-                        this_level_terms.clear();
-
+                        info!("Herbrand's Universe: proceeding to the next level. Appending terms: {}\n", GroundTermVecDisplay(this_level_terms));
+                        lower_level_terms.append(this_level_terms);
                         *arity_iter = self.arity_iter_backup.clone();
                         *curr_fn = arity_iter.next().unwrap();
+                        debug!(
+                            "Herbrand's Universe: moving to another symbol: {}/{}",
+                            curr_fn.1, curr_fn.0
+                        );
                         *curr_fn_selector =
                             LowerLevelElemSelector::new(curr_fn.0, lower_level_terms);
 
@@ -328,8 +294,8 @@ impl<'sig, ArityIter: Iterator<Item = (Arity, String)> + Clone> Iterator
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct GroundTerm {
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct GroundTerm {
     fun_name: String,
     ground_terms: Vec<GroundTerm>,
 }
@@ -341,14 +307,10 @@ impl GroundTerm {
         }
     }
 
-    fn encode(&self) -> String {
-        self.to_string()
-    }
-
     fn display_name_with_ground_terms(
         f: &mut std::fmt::Formatter<'_>,
         name: &str,
-        terms: &Vec<impl Display>,
+        terms: &[impl Display],
     ) -> std::fmt::Result {
         f.write_str(name)?;
         let mut iter = terms.iter();
@@ -406,7 +368,7 @@ impl Display for GroundRel<'_> {
 
 impl SkolemisedFormula {
     // Grounds the formula, replacing vars (keys) with ground terms (values).
-    fn ground(&self, mapping: &HashMap<&str, GroundTerm>) -> NNFPropagated {
+    pub(crate) fn ground(&self, mapping: &HashMap<&str, GroundTerm>) -> NNFPropagated {
         match self {
             SkolemisedFormula::Instant(i) => NNFPropagated::Instant(*i),
             SkolemisedFormula::Inner { ksi, .. } => NNFPropagated::Inner(ksi.ground(mapping)),
@@ -459,28 +421,34 @@ impl NNFQuantifierFreeInner {
 
 #[cfg(test)]
 mod tests {
-    use crate::init_logger;
-
     use super::*;
 
     #[test]
     fn herbrands_universe() {
-        init_logger();
+        #[track_caller]
+        fn assert_contains(term: &str, universe: &Vec<String>) {
+            assert!(universe.contains(&term.to_owned()));
+        }
         {
             // max arity 1
-            let fns = [(0, &["c", "d"][..]), (1, &["f", "g"])];
+            let fns = [(0, &["c"][..]), (1, &["f", "g"])];
             let sig = Signature {
-                per_name: HashMap::new(),
                 per_arity: HashMap::from_iter(fns.into_iter().map(|(arity, names)| {
                     (
                         arity,
                         names.into_iter().map(|str| (*str).to_owned()).collect(),
                     )
                 })),
-                empty_set: HashSet::new(),
             };
-            let universe11 = Vec::from_iter(sig.herbrands_universe_iter().take(11));
-            universe11.iter().for_each(|elem| print!("{}, ", elem));
+            let expected_terms = ["f(c)", "g(f(g(f(c))))"];
+            let universe = Vec::from_iter(
+                sig.herbrands_universe()
+                    .take(100)
+                    .map(|term| term.to_string()),
+            );
+            for expected_term in expected_terms {
+                assert_contains(expected_term, &universe);
+            }
         }
         {
             let fns = [
@@ -489,17 +457,30 @@ mod tests {
                 (2, &["dist", "pow"]),
             ];
             let sig = Signature {
-                per_name: HashMap::new(),
                 per_arity: HashMap::from_iter(fns.into_iter().map(|(arity, names)| {
                     (
                         arity,
                         names.into_iter().map(|str| (*str).to_owned()).collect(),
                     )
                 })),
-                empty_set: HashSet::new(),
             };
-            let universe40 = Vec::from_iter(sig.herbrands_universe_iter().take(40));
-            universe40.iter().for_each(|elem| print!("{}, ", elem));
+
+            let expected_terms = [
+                "f(c)",
+                "dist(c, c)",
+                "pow(dist(d, d), c)",
+                "pow(dist(d, c), f(c))",
+                "f(f(c))",
+            ];
+            let universe = Vec::from_iter(
+                sig.herbrands_universe()
+                    .take(10000)
+                    .map(|term| term.to_string()),
+            );
+
+            for expected_term in expected_terms {
+                assert_contains(expected_term, &universe);
+            }
         }
     }
 }
