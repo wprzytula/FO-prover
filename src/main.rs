@@ -12,7 +12,6 @@ use propositional::nnf::NNF;
 use propositional::sat_solver::SatSolver;
 
 use crate::first_order::decider::TautologyDecider;
-use crate::first_order::formula::Formula;
 
 pub(crate) mod first_order;
 pub(crate) mod propositional;
@@ -46,6 +45,8 @@ mod tests {
     use std::{fs::read_dir, path::Path};
 
     use log::info;
+
+    use crate::first_order::formula::Formula;
 
     use super::*;
 

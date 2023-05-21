@@ -274,8 +274,6 @@ impl RenameVar for NNFPropagatedInner {
 pub(crate) mod tests {
     use crate::first_order::formula::Formula;
 
-    use super::*;
-
     #[test]
     fn nnf() {
         // Exists "x" (Implies (Rel "D" [Var "x"]) (Forall "y" (Rel "D" [Var "y"])))
