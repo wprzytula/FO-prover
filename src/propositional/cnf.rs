@@ -19,6 +19,16 @@ use crate::{
 #[allow(clippy::upper_case_acronyms)]
 pub(crate) struct CNF(pub(crate) Vec<CNFClause>);
 
+impl CNF {
+    pub(crate) fn empty_satisfiable() -> Self {
+        Self(Vec::new())
+    }
+
+    pub(crate) fn append_clauses(&mut self, mut other: CNF) {
+        self.0.append(&mut other.0)
+    }
+}
+
 impl Display for CNF {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_char('[')?;
