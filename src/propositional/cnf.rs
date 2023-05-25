@@ -36,14 +36,16 @@ impl CNF {
 impl Display for CNF {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_char('[')?;
+        f.write_char('\n')?;
         let mut iter = self.0.iter();
         if let Some(clause) = iter.next() {
             clause.fmt(f)?;
         }
         for clause in iter {
-            f.write_str(" and ")?;
+            f.write_str(", and\n")?;
             clause.fmt(f)?;
         }
+        f.write_char('\n')?;
         f.write_char(']')?;
         Ok(())
     }
