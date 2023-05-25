@@ -45,7 +45,7 @@ impl TautologyDecider {
             let grounded_formula = skolemised.ground(&HashMap::new());
             // let grounded_cnf = CNF::ECNF(grounded_formula);
             let grounded_cnf = CNF::equivalent(&grounded_formula);
-            return match SatSolver::solve_by_dp(grounded_cnf) {
+            return match SatSolver::solve_by_dpll(grounded_cnf) {
                 Satisfiable => false,
                 Unsatisfiable => true,
             };
@@ -100,7 +100,7 @@ impl TautologyDecider {
                 offending_conjunction.append_clauses(grounded_cnf);
                 // debug!("Conjunction: {}", &offending_conjunction);
 
-                match SatSolver::solve_by_dp(offending_conjunction.clone()) {
+                match SatSolver::solve_by_dpll(offending_conjunction.clone()) {
                     Satisfiable => (),
                     Unsatisfiable => {
                         info!(

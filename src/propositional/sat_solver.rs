@@ -333,6 +333,11 @@ impl CNF {
             })
         }))
     }
+
+    fn with_explicit_literal(mut self, literal: Literal) -> Self {
+        self.0.push(CNFClause(vec![literal]));
+        self
+    }
 }
 
 pub(crate) struct SatSolver;
@@ -361,6 +366,39 @@ impl SatSolver {
             let chosen_var = cnf.choose_var_for_resolution().to_owned();
             cnf.resolve(&chosen_var);
         }
+    }
+
+    pub(crate) fn solve_by_dpll(mut cnf: CNF) -> SolverJudgement {
+        let mut apply_1_5_again = true;
+        while apply_1_5_again {
+            apply_1_5_again = false;
+            // 1. If the CNF is empty, then it is satisfiable.
+            // 2. If the CNF contains an empty clause, then it is not satisfiable.
+            if let Some(judgement) = cnf.try_trivially_solve() {
+                return judgement;
+            }
+            // 3. Remove all tautological clauses.
+            apply_1_5_again |= cnf.remove_tautologies();
+
+            // 4. Apply the one-literal rule until it can no longer be applied.
+            apply_1_5_again |= cnf.one_literal();
+
+            // 5. Apply the affirmative-negative rule until it can no longer be applied.
+            apply_1_5_again |= cnf.affirmative_negative();
+        }
+        // 6. Only when 3., 4., and 5. above can no longer be applied, apply resolution, and start again from the beginning.
+        let chosen_var = cnf.choose_var_for_resolution().to_owned();
+
+        // Resolve positively
+        if let SolverJudgement::Satisfiable = Self::solve_by_dpll(
+            cnf.clone()
+                .with_explicit_literal(Literal::Pos(chosen_var.clone())),
+        ) {
+            return SolverJudgement::Satisfiable;
+        }
+
+        // Else resolve negatively
+        Self::solve_by_dpll(cnf.with_explicit_literal(Literal::Neg(chosen_var)))
     }
 }
 
@@ -927,8 +965,12 @@ pub(crate) mod tests {
 
             let nnf = NNF::new(proposition.clone()).propagate_constants();
             let cnf = CNF::ECNF(nnf);
-            let dp_judgement = SatSolver::solve_by_dp(cnf);
+
+            let dp_judgement = SatSolver::solve_by_dp(cnf.clone());
             assert_eq!(dp_judgement, expected_judgement);
+
+            let dpll_judgement = SatSolver::solve_by_dpll(cnf);
+            assert_eq!(dpll_judgement, expected_judgement);
         }
     }
 
