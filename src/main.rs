@@ -26,7 +26,9 @@ fn main() -> Result<()> {
         buf
     };
 
+    info!("Read formula: {}", &input);
     let formula = parser.parse(&input)?;
+    info!("Parsed formula: {}", &formula);
     let is_tautology = TautologyDecider::is_tautology(formula);
     print!("{}", is_tautology as u8);
 

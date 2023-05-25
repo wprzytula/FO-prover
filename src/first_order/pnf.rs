@@ -198,6 +198,7 @@ impl NNFPropagated {
         // TODO: miniscoping
         let mut miniscoped = self;
         let all_vars = miniscoped.make_vars_unique();
+        info!("NNFPropagated with vars made unique: {}", &miniscoped);
         let mut universally_quantified_vars = HashSet::new();
         let mut skolem_fns = HashMap::new();
         match &mut miniscoped {
@@ -252,6 +253,8 @@ impl NNFPropagatedInner {
                     QuantifierKind::Exists => {
                         let skolem_fn_name = skolem_function(var);
                         let terms = Vec::from_iter(universally_quantified_vars.iter().cloned());
+                        debug!("Found existential variable {}, so replacing it with Skolem function: {}",
+                                var, TermDisplayer{name: &skolem_fn_name, terms: &terms});
                         assert!(skolem_fns
                             .insert(var.clone(), (skolem_fn_name, terms))
                             .is_none());

@@ -1,10 +1,15 @@
 use std::collections::HashMap;
 
-use crate::propositional::{
-    cnf::CNF,
-    sat_solver::{
-        SatSolver,
-        SolverJudgement::{Satisfiable, Unsatisfiable},
+use log::{debug, info};
+
+use crate::{
+    first_order::herbrand::GroundTerm,
+    propositional::{
+        cnf::CNF,
+        sat_solver::{
+            SatSolver,
+            SolverJudgement::{Satisfiable, Unsatisfiable},
+        },
     },
 };
 
@@ -17,10 +22,15 @@ impl TautologyDecider {
         // 1. Convert ¬ϕ to an equisatisfiable Skolem normal form ψ ≡ ∀x1 , . . . , xn · ξ,
         // with ξ quantifier-free.
         formula.close_universally();
+        info!("Formula closed universally: {}", &formula);
         let negated_formula = Formula::not(formula);
+        info!("Formula negated: {}", &negated_formula);
         let nnf = negated_formula.into_nnf();
+        info!("Formula in NNF: {}", &nnf);
         let nnf_propagated = nnf.propagate_constants();
+        info!("Formula in NNFPropagated: {}", &nnf_propagated);
         let skolemised = nnf_propagated.skolemise();
+        info!("Formula after Skolemisation: {}", &skolemised);
         let signature = skolemised.signature();
         let vars = match skolemised {
             SkolemisedFormula::Instant(i) => return i.into_bool(),
@@ -30,14 +40,18 @@ impl TautologyDecider {
             } => universally_quantified_vars,
         };
         if vars.is_empty() {
+            info!("Detected trivial case: no universally quantified variables.");
             // Just check satisfiability.
             let grounded_formula = skolemised.ground(&HashMap::new());
-            let grounded_cnf = CNF::ECNF(grounded_formula);
+            // let grounded_cnf = CNF::ECNF(grounded_formula);
+            let grounded_cnf = CNF::equivalent(&grounded_formula);
             return match SatSolver::solve_by_dp(grounded_cnf) {
                 Satisfiable => false,
                 Unsatisfiable => true,
             };
         }
+
+        info!("Detected nontrivial case: some universally quantified variables.");
 
         // 2. Verify that ψ is unsatisfiable: By Herbrand’s theorem, it suffices to find n-
         // tuples of ground terms ū1 , . . . , ūm (i.e., elements of the Herbrand universe)
@@ -46,23 +60,127 @@ impl TautologyDecider {
         // is unsatisfiable.
 
         let herbrands_universe = signature.herbrands_universe();
-        let mut offending_conjunction = CNF::empty_satisfiable();
-        for herbrand_term in herbrands_universe {
-            let mapping = vars
-                .iter()
-                .map(|var| (var.as_str(), herbrand_term.clone()))
-                .collect();
-            let grounded_formula = skolemised.ground(&mapping);
-            let grounded_cnf = CNF::ECNF(grounded_formula);
-            offending_conjunction.append_clauses(grounded_cnf);
+        info!("Signature: {:#?}", signature);
 
-            match SatSolver::solve_by_dp(offending_conjunction.clone()) {
-                Satisfiable => (),
-                Unsatisfiable => return true,
+        if signature.per_arity.keys().any(|arity| *arity > 0) {
+            info!(
+                "Signature contains functional symbols, so Herbrand's universe is infinite. \
+                   Being non-tautology is not provable."
+            );
+        } else {
+            info!(
+                "Signature does not contain functional symbols, so Herbrand's universe is finite. \
+                   Being non-tautology is provable."
+            );
+        }
+
+        let mut offending_conjunction = CNF::empty_satisfiable();
+
+        let mut terms = Vec::new();
+
+        let mut selector = Selector::new_for_n_vars(vars.len());
+        let mut var_to_term = HashMap::new();
+
+        for herbrand_term in herbrands_universe {
+            info!(
+                "Extending term set with Herbrand's term: {}",
+                &herbrand_term
+            );
+            terms.push(herbrand_term);
+            loop {
+                selector.extract_mapping(&mut var_to_term, vars, &terms);
+                // debug!("Extracted mapping: {:#?}", &var_to_term);
+                let grounded_formula = skolemised.ground(&var_to_term);
+                debug!(
+                    "Grounded formula\n{}, yielding\n{}",
+                    &skolemised, &grounded_formula
+                );
+                let grounded_cnf = CNF::equivalent(&grounded_formula);
+                // let grounded_cnf = CNF::ECNF(grounded_formula);
+                offending_conjunction.append_clauses(grounded_cnf);
+                // debug!("Conjunction: {}", &offending_conjunction);
+
+                match SatSolver::solve_by_dp(offending_conjunction.clone()) {
+                    Satisfiable => (),
+                    Unsatisfiable => {
+                        info!(
+                            "Found unsatisfiable conjunction (len={}). Concluding tautology.",
+                            offending_conjunction.len_clauses(),
+                        );
+                        // debug!("Offending conjunction: {:#?}", &offending_conjunction);
+
+                        return true;
+                    }
+                }
+
+                // move to next configuration or break if depleted
+                if selector.next_config(&terms).is_none() {
+                    break;
+                }
             }
         }
 
         // If the universe is finite and depleted, this means that the formula is not a tautology.
+        info!("The Herbrand's universe was depleted, so we conclude that the formula is not a tautology");
         false
+    }
+}
+
+struct Selector(Vec<usize>);
+impl Selector {
+    fn new_for_n_vars(n: usize) -> Self {
+        Self(vec![0usize; n])
+    }
+
+    fn next_config(&mut self, terms: &Vec<GroundTerm>) -> Option<()> {
+        // increment units
+        if self.0[0] + 1 < terms.len() {
+            self.0[0] += 1;
+            Some(())
+        } else {
+            self.0[0] = 0;
+            // handle carry
+            let mut carry_handled = false;
+            for i in 1..self.0.len() {
+                if self.0[i] + 1 < terms.len() {
+                    self.0[i] += 1;
+                    carry_handled = true;
+                    break;
+                } else {
+                    self.0[i] = 0;
+                    // next column in next iteration
+                }
+            }
+            if carry_handled {
+                Some(())
+            } else {
+                None
+            }
+        }
+    }
+
+    fn extract_mapping<'a, 'b: 'a>(
+        &self,
+        var_to_term: &mut HashMap<&'a str, GroundTerm>,
+        vars: &'b [String],
+        terms: &[GroundTerm],
+    ) {
+        var_to_term.clear();
+        for (var_idx, term_idx) in self.0.iter().copied().enumerate() {
+            var_to_term.insert(vars[var_idx].as_str(), terms[term_idx].clone());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Selector;
+
+    #[test]
+    fn selector() {
+        let vars = vec!["x", "y", "z"];
+        let mut selector = Selector::new_for_n_vars(vars.len());
+        let herbrands_terms = vec![];
+        selector.next_config(&herbrands_terms);
     }
 }
