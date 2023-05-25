@@ -159,12 +159,14 @@ impl CNF {
                 applied = true;
             }
             single_literals.sort();
+            trace!("Single literals: {:?}", single_literals);
             {
                 // check for contradicting single literal clauses
                 let mut iter = single_literals.iter();
                 let mut prev = iter.next().unwrap();
                 for literal in iter {
                     if literal.is_opposite(prev) {
+                        debug!("Found contradicting single literals: {} and {}", prev, literal);
                         // The formula is unsatisfiable, so return a trivial such.
                         self.0.clear();
                         self.0.push(CNFClause(vec![]));
@@ -193,6 +195,7 @@ impl CNF {
                     .0
                     .retain(|literal| negated_single_literals.binary_search(literal).is_err())
             }
+            trace!("CNF after removing single literals: {}", self);
         }
     }
 
@@ -379,12 +382,15 @@ impl SatSolver {
             }
             // 3. Remove all tautological clauses.
             apply_1_5_again |= cnf.remove_tautologies();
+            debug!("CNF after remove_tautologies: {}", &cnf);
 
             // 4. Apply the one-literal rule until it can no longer be applied.
             apply_1_5_again |= cnf.one_literal();
+            debug!("CNF after one_literal: {}", &cnf);
 
             // 5. Apply the affirmative-negative rule until it can no longer be applied.
             apply_1_5_again |= cnf.affirmative_negative();
+            debug!("CNF after affirmative_negative: {}", &cnf);
         }
         // 6. Only when 3., 4., and 5. above can no longer be applied, apply resolution, and start again from the beginning.
         let chosen_var = cnf.choose_var_for_resolution().to_owned();

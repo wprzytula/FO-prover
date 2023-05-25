@@ -207,7 +207,7 @@ impl CNF {
     pub(crate) fn ECNF(propagated: NNFPropagated) -> Self {
         let mut vars = HashSet::from_iter(propagated.vars().into_iter().map(ToOwned::to_owned));
 
-        debug!("Building ECNF for {}", &propagated);
+        debug!("Building ECNF for {}\n which has vars {:?}", &propagated, &vars);
 
         fn include_subformula<'a>(
             ecnf: &mut Vec<CNFClause>,
@@ -442,7 +442,7 @@ mod tests {
             // SAT
             let prop = Proposition::example_sat();
             let nnf = NNF::new(prop);
-            let nnf_propagated = nnf.clone().propagate_constants();
+            let nnf_propagated = nnf.propagate_constants();
             let ecnf = CNF::ECNF(nnf_propagated.clone());
             assert!(equisatisfiable(&ecnf, &nnf_propagated));
         }
@@ -450,7 +450,20 @@ mod tests {
             // UNSAT
             let prop = Proposition::example_unsat();
             let nnf = NNF::new(prop);
-            let nnf_propagated = nnf.clone().propagate_constants();
+            let nnf_propagated = nnf.propagate_constants();
+            let ecnf = CNF::ECNF(nnf_propagated.clone());
+            assert!(equisatisfiable(&ecnf, &nnf_propagated));
+        }
+        for (_tautology_name, tautology) in Proposition::tautologies() {
+            // pos
+            let nnf = NNF::new(tautology.clone());
+            let nnf_propagated = nnf.propagate_constants();
+            let ecnf = CNF::ECNF(nnf_propagated.clone());
+            assert!(equisatisfiable(&ecnf, &nnf_propagated));
+
+            // neg
+            let nnf = NNF::new(Proposition::not(tautology));
+            let nnf_propagated = nnf.propagate_constants();
             let ecnf = CNF::ECNF(nnf_propagated.clone());
             assert!(equisatisfiable(&ecnf, &nnf_propagated));
         }
