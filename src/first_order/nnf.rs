@@ -1,11 +1,17 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    fmt::{Debug, Display, Write},
+};
 
 use crate::{
     first_order::formula::{BinLogOp, BinLogOpKind, Formula, LogOp, Quantifier},
     propositional::{nnf::NNFLogOpKind, proposition::fresh_var},
 };
 
-use super::formula::{Instant, QuantifierKind, RenameVar, Term};
+use super::{
+    formula::{Instant, QuantifierKind, RenameVar, Term},
+    herbrand::display_term_name_with_terms,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NNF {
@@ -161,6 +167,31 @@ impl NNF {
     }
 }
 
+impl Display for NNF {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NNF::Instant(i) => Display::fmt(i, f),
+            NNF::LogOp { kind, phi, psi } => write!(f, "({} {} {})", phi, kind, psi),
+            NNF::Rel { kind, name, terms } => match kind {
+                NNFRelKind::Pos => display_term_name_with_terms(f, name, terms),
+                NNFRelKind::Neg => {
+                    f.write_str("~")?;
+                    display_term_name_with_terms(f, name, terms)
+                }
+            },
+            NNF::Quantified { kind, var, phi } => {
+                f.write_char('(')?;
+                write!(f, "{}", kind)?;
+                f.write_char(' ')?;
+                f.write_str(var.as_str())?;
+                f.write_char('.')?;
+                write!(f, "{}", phi)?;
+                f.write_char(')')
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NNFPropagated {
     Instant(Instant),
@@ -185,6 +216,39 @@ impl NNFPropagated {
             NNFPropagated::Inner(inner) => inner.make_vars_unique(&mut vars),
         }
         vars
+    }
+}
+
+impl Display for NNFPropagated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Instant(i) => Display::fmt(i, f),
+            Self::Inner(inner) => Display::fmt(inner, f),
+        }
+    }
+}
+
+impl Display for NNFPropagatedInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LogOp { kind, phi, psi } => write!(f, "({} {} {})", phi, kind, psi),
+            Self::Rel { kind, name, terms } => match kind {
+                NNFRelKind::Pos => display_term_name_with_terms(f, name, terms),
+                NNFRelKind::Neg => {
+                    f.write_str("~")?;
+                    display_term_name_with_terms(f, name, terms)
+                }
+            },
+            Self::Quantified { kind, var, phi } => {
+                f.write_char('(')?;
+                write!(f, "{}", kind)?;
+                f.write_char(' ')?;
+                f.write_str(var.as_str())?;
+                f.write_char('.')?;
+                write!(f, "{}", phi)?;
+                f.write_char(')')
+            }
+        }
     }
 }
 
