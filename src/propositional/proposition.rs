@@ -106,6 +106,40 @@ impl UsedVars for Proposition {
     }
 }
 
+impl Proposition {
+    #[allow(unused)]
+    fn binop(phi: Proposition, psi: Proposition, op: BinLogOpKind) -> Proposition {
+        Proposition::LogOp(LogOp::Bin(BinLogOp {
+            kind: op,
+            phi: Box::new(phi),
+            psi: Box::new(psi),
+        }))
+    }
+    #[allow(unused)]
+    pub(crate) fn implies(phi: Proposition, psi: Proposition) -> Proposition {
+        Self::binop(phi, psi, BinLogOpKind::Implies)
+    }
+    #[allow(unused)]
+    pub(crate) fn iff(phi: Proposition, psi: Proposition) -> Proposition {
+        Self::binop(phi, psi, BinLogOpKind::Iff)
+    }
+    #[allow(unused)]
+    pub(crate) fn and(phi: Proposition, psi: Proposition) -> Proposition {
+        Self::binop(phi, psi, BinLogOpKind::And)
+    }
+    #[allow(unused)]
+    pub(crate) fn or(phi: Proposition, psi: Proposition) -> Proposition {
+        Self::binop(phi, psi, BinLogOpKind::Or)
+    }
+    #[allow(unused)]
+    pub(crate) fn not(phi: Proposition) -> Proposition {
+        Proposition::LogOp(LogOp::Not(Box::new(phi)))
+    }
+    #[allow(unused)]
+    pub(crate) fn var(s: impl Into<String>) -> Proposition {
+        Proposition::Var(s.into())
+    }
+}
 
 impl Display for Proposition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -200,32 +234,6 @@ pub(crate) mod tests {
     }
 
     impl Proposition {
-        fn binop(phi: Proposition, psi: Proposition, op: BinLogOpKind) -> Proposition {
-            Proposition::LogOp(LogOp::Bin(BinLogOp {
-                kind: op,
-                phi: Box::new(phi),
-                psi: Box::new(psi),
-            }))
-        }
-        pub(crate) fn implies(phi: Proposition, psi: Proposition) -> Proposition {
-            Self::binop(phi, psi, BinLogOpKind::Implies)
-        }
-        pub(crate) fn iff(phi: Proposition, psi: Proposition) -> Proposition {
-            Self::binop(phi, psi, BinLogOpKind::Iff)
-        }
-        pub(crate) fn and(phi: Proposition, psi: Proposition) -> Proposition {
-            Self::binop(phi, psi, BinLogOpKind::And)
-        }
-        pub(crate) fn or(phi: Proposition, psi: Proposition) -> Proposition {
-            Self::binop(phi, psi, BinLogOpKind::Or)
-        }
-        pub(crate) fn not(phi: Proposition) -> Proposition {
-            Proposition::LogOp(LogOp::Not(Box::new(phi)))
-        }
-        pub(crate) fn var(s: impl Into<String>) -> Proposition {
-            Proposition::Var(s.into())
-        }
-
         pub(crate) fn example_sat() -> Self {
             Self::LogOp(LogOp::Not(Box::new(Self::LogOp(LogOp::Bin(BinLogOp {
                 kind: BinLogOpKind::Iff,
