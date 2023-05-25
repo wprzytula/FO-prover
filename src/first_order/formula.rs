@@ -589,7 +589,7 @@ mod parse {
                 if let Some(term_tree) = term_tree {
                     terms.push(Self::parse_term(term_tree)?);
                 }
-                if let Ok(rhs_cont) = extract_rhs::<4>(tree) {
+                if let Ok(rhs_cont) = extract_rhs::<4>(t_seq) {
                     t_seq = extract_nonterminal_node(rhs_cont[3], "t_seq")?;
                 } else {
                     break;
