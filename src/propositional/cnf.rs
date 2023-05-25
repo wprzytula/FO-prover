@@ -207,6 +207,8 @@ impl CNF {
     pub(crate) fn ECNF(propagated: NNFPropagated) -> Self {
         let mut vars = HashSet::from_iter(propagated.vars().into_iter().map(ToOwned::to_owned));
 
+        debug!("Building ECNF for {}", &propagated);
+
         fn include_subformula<'a>(
             ecnf: &mut Vec<CNFClause>,
             propagated: &'a NNFPropagatedInner,
@@ -216,9 +218,7 @@ impl CNF {
             let formula_eq = match propagated {
                 NNFPropagatedInner::Var(k, s) => match k {
                     NNFVarKind::Pos => Proposition::Var(s.clone()),
-                    NNFVarKind::Neg => {
-                        Proposition::LogOp(LogOp::Not(Box::new(Proposition::Var(s.clone()))))
-                    }
+                    NNFVarKind::Neg => Proposition::not(Proposition::Var(s.clone())),
                 },
                 NNFPropagatedInner::LogOp { kind, phi, psi } => {
                     let phi = include_subformula(ecnf, phi, vars);
@@ -234,14 +234,13 @@ impl CNF {
                     }))
                 }
             };
-            let formula = Proposition::LogOp(LogOp::Bin(BinLogOp {
-                kind: BinLogOpKind::Iff,
-                phi: Box::new(Proposition::Var(theta.clone())),
-                psi: Box::new(formula_eq),
-            }));
+            let formula = Proposition::iff(Proposition::Var(theta.clone()), formula_eq);
+            debug!("Equivalence formula: {}", formula);
             let formula_nnf = NNF::new(formula).propagate_constants();
-            let formula_cnf = CNF::equivalent(&formula_nnf);
-            ecnf.extend(formula_cnf.0.into_iter());
+            debug!("Equivalence formula NNF: {}", formula_nnf);
+            let mut formula_cnf = CNF::equivalent(&formula_nnf);
+            debug!("Equivalence formula CNF: {}", formula_cnf);
+            ecnf.append(&mut formula_cnf.0);
 
             theta
         }
@@ -270,7 +269,9 @@ impl CNF {
                     vars_before, vars_after
                 );
 
-                CNF(ecnf)
+                let ecnf = CNF(ecnf);
+                debug!("Complete ECNF: {}", ecnf);
+                ecnf
             }
         }
     }
