@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Write,
+    fmt::{Display, Write},
     hash::Hash,
 };
 
@@ -106,6 +106,16 @@ impl UsedVars for Proposition {
     }
 }
 
+
+impl Display for Proposition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Proposition::Instant(i) => i.fmt(f),
+            Proposition::LogOp(logop) => logop.fmt(f),
+            Proposition::Var(v) => v.fmt(f),
+        }
+    }
+}
 #[cfg(test)]
 pub(crate) mod tests {
     use std::cell::RefCell;
