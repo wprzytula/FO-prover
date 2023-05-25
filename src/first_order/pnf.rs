@@ -1,6 +1,14 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::{Display, Write},
+};
 
-use crate::propositional::{nnf::NNFLogOpKind, proposition::UsedVars};
+use log::{debug, info};
+
+use crate::{
+    first_order::herbrand::TermDisplayer,
+    propositional::{nnf::NNFLogOpKind, proposition::UsedVars},
+};
 
 use super::{
     formula::{Instant, Logic, QuantifierKind, Rel, RenameVar, Term},
@@ -51,9 +59,24 @@ impl RenameVar for NNFQuantifierFreeInner {
     }
 }
 
+impl Display for NNFQuantifierFreeInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LogOp { kind, phi, psi } => write!(f, "({} {} {})", phi, kind, psi),
+            Self::Rel { kind, rel } => match kind {
+                NNFRelKind::Pos => Display::fmt(rel, f),
+                NNFRelKind::Neg => {
+                    f.write_str("~")?;
+                    Display::fmt(rel, f)
+                }
+            },
+        }
+    }
+}
+
 impl NNFPropagated {
     #[allow(non_snake_case)]
-    pub(crate) fn into_PNF(mut self) -> PNF {
+    pub(crate) fn into_PNF(self) -> PNF {
         match self {
             NNFPropagated::Instant(i) => PNF::Instant(i),
             NNFPropagated::Inner(inner) => PNF::Inner(inner.into_PNF().0),
@@ -140,6 +163,30 @@ pub(crate) enum SkolemisedFormula {
         universally_quantified_vars: Vec<String>,
         ksi: NNFQuantifierFreeInner,
     },
+}
+
+impl Display for SkolemisedFormula {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SkolemisedFormula::Instant(i) => Display::fmt(i, f),
+            SkolemisedFormula::Inner {
+                universally_quantified_vars,
+                ksi,
+            } => {
+                if !universally_quantified_vars.is_empty() {
+                    f.write_char('∀')?;
+                    f.write_char(' ')?;
+                    for quantified in universally_quantified_vars {
+                        f.write_str(quantified)?;
+                        f.write_str(" ")?;
+                    }
+                    f.write_char('.')?;
+                    f.write_char(' ')?;
+                }
+                Display::fmt(ksi, f)
+            }
+        }
+    }
 }
 
 fn skolem_function(var: &str) -> String {
