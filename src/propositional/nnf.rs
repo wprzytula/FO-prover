@@ -1,4 +1,8 @@
-use std::{collections::HashSet, hash::Hash};
+use std::{
+    collections::HashSet,
+    fmt::{Display, Write},
+    hash::Hash,
+};
 
 use crate::{
     first_order::formula::{BinLogOp, BinLogOpKind, Instant, LogOp},
@@ -28,12 +32,12 @@ pub(crate) enum NNFLogOpKind {
     Or,
 }
 
-impl NNFLogOpKind {
-    pub(crate) fn opposite(self) -> Self {
-        match self {
-            NNFLogOpKind::And => NNFLogOpKind::Or,
-            NNFLogOpKind::Or => NNFLogOpKind::And,
-        }
+impl Display for NNFLogOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char(match self {
+            Self::And => '∧',
+            Self::Or => '∨',
+        })
     }
 }
 
@@ -215,6 +219,15 @@ impl UsedVars for NNFPropagated {
     }
 }
 
+impl Display for NNFPropagated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NNFPropagated::Instant(i) => Display::fmt(i, f),
+            NNFPropagated::Inner(inner) => Display::fmt(inner, f),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum NNFPropagatedInner {
     LogOp {
@@ -282,6 +295,21 @@ impl UsedVars for NNFPropagatedInner {
         }
         rec(&mut vars, self);
         vars
+    }
+}
+
+impl Display for NNFPropagatedInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LogOp { kind, phi, psi } => write!(f, "({} {} {})", phi, kind, psi),
+            Self::Var(kind, var) => match kind {
+                NNFVarKind::Pos => f.write_str(var),
+                NNFVarKind::Neg => {
+                    f.write_str("~")?;
+                    f.write_str(var)
+                }
+            },
+        }
     }
 }
 
