@@ -1,9 +1,15 @@
-use std::{collections::HashSet, hash::Hash};
+use std::{
+    collections::HashSet,
+    fmt::{Display, Write},
+    hash::Hash,
+};
 
 use anyhow::{bail, Context};
 use bnf::{ParseTree, ParseTreeNode};
 
 use crate::propositional::proposition::{fresh_var, UsedVars};
+
+use super::herbrand::display_term_name_with_terms;
 
 pub(crate) trait Logic {}
 impl Logic for Formula {}
@@ -16,6 +22,17 @@ pub(crate) enum Formula {
     Quantified(Quantifier),
 }
 
+impl Display for Formula {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Formula::Instant(i) => i.fmt(f),
+            Formula::LogOp(op) => op.fmt(f),
+            Formula::Rel(rel) => rel.fmt(f),
+            Formula::Quantified(q) => q.fmt(f),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub(crate) enum Instant {
     T,
@@ -23,13 +40,6 @@ pub(crate) enum Instant {
 }
 
 impl Instant {
-    pub(crate) fn negated(self) -> Self {
-        match self {
-            Instant::T => Instant::F,
-            Instant::F => Instant::T,
-        }
-    }
-
     pub(crate) fn into_bool(self) -> bool {
         match self {
             Instant::T => true,
@@ -46,10 +56,30 @@ impl Instant {
     }
 }
 
+impl Display for Instant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char(match self {
+            Instant::T => '⊤',
+            Instant::F => '⊥',
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LogOp<L: Logic> {
     Not(Box<L>),
     Bin(BinLogOp<L>),
+}
+
+impl<T: Logic + Display> Display for LogOp<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogOp::Not(inner) => {
+                write!(f, "~{}", inner)
+            }
+            LogOp::Bin(binop) => binop.fmt(f),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,12 +89,29 @@ pub(crate) struct BinLogOp<L: Logic> {
     pub(crate) psi: Box<L>,
 }
 
+impl<T: Logic + Display> Display for BinLogOp<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({} {} {})", self.phi, self.kind, self.psi)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BinLogOpKind {
     And,
     Or,
     Implies,
     Iff,
+}
+
+impl Display for BinLogOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char(match self {
+            BinLogOpKind::And => '∧',
+            BinLogOpKind::Or => '∨',
+            BinLogOpKind::Implies => '→',
+            BinLogOpKind::Iff => '↔',
+        })
+    }
 }
 
 type FOLogOp = LogOp<Formula>;
@@ -77,16 +124,45 @@ pub(crate) struct Quantifier {
     pub(crate) phi: Box<Formula>,
 }
 
+impl Display for Quantifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char('(')?;
+        write!(f, "{}", self.kind)?;
+        f.write_char(' ')?;
+        f.write_str(self.var.as_str())?;
+        f.write_char('.')?;
+        write!(f, "{}", self.phi)?;
+        f.write_char(')')?;
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub(crate) enum QuantifierKind {
     Exists,
     Forall,
 }
 
+impl Display for QuantifierKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char(match self {
+            QuantifierKind::Exists => '∃',
+            QuantifierKind::Forall => '∀',
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Rel {
     pub(crate) name: String,
     pub(crate) terms: Vec<Term>,
+}
+
+impl Display for Rel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        display_term_name_with_terms(f, &self.name, &self.terms)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,6 +184,15 @@ impl Term {
                 }
             }
             Term::Fun(_name, terms) => terms.iter().for_each(|term| term.free_vars(free, captured)),
+        }
+    }
+}
+
+impl Display for Term {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Term::Var(var) => var.fmt(f),
+            Term::Fun(name, terms) => display_term_name_with_terms(f, name, terms),
         }
     }
 }
