@@ -8,7 +8,7 @@ use crate::first_order::formula::{BinLogOp, BinLogOpKind, Instant, LogOp, Logic}
 
 pub(crate) fn fresh_var(vars: &mut HashSet<String>) -> String {
     let mut buf = String::new();
-    buf.push('p');
+    buf.push('x');
     for i in 0.. {
         buf.truncate(1);
         write!(buf, "{}", i).unwrap();
@@ -52,6 +52,7 @@ type PLogOp = LogOp<Proposition>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Proposition {
+    #[allow(unused)]
     Instant(Instant),
     LogOp(PLogOp),
     Var(String),
