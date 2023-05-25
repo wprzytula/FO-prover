@@ -214,7 +214,6 @@ impl CNF {
             propagated: &'a NNFPropagatedInner,
             vars: &mut HashSet<String>,
         ) -> String {
-            let theta = fresh_var(vars);
             let formula_eq = match propagated {
                 NNFPropagatedInner::Var(k, s) => match k {
                     NNFVarKind::Pos => Proposition::Var(s.clone()),
@@ -234,6 +233,7 @@ impl CNF {
                     }))
                 }
             };
+            let theta: String = fresh_var(vars);
             let formula = Proposition::iff(Proposition::Var(theta.clone()), formula_eq);
             debug!("Equivalence formula: {}", formula);
             let formula_nnf = NNF::new(formula).propagate_constants();
