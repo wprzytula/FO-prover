@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use log::{debug, trace};
 
-use super::{
-    cnf::{CNFClause, Literal, CNF},
-    proposition::{Evaluable, UsedVars},
-};
+use super::cnf::{CNFClause, Literal, CNF};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SolverJudgement {
@@ -105,7 +102,7 @@ impl CNFClause {
 
         let literals_after = self.0.len();
         assert!(literals_after <= literals_before);
-        debug!(
+        trace!(
             "Removed {} literals from the clause",
             literals_before - literals_after
         );
@@ -341,37 +338,6 @@ impl CNF {
 pub(crate) struct SatSolver;
 
 impl SatSolver {
-    pub(crate) fn solve_by_truth_tables(
-        formula: &(impl Evaluable + UsedVars),
-    ) -> (SolverJudgement, Option<HashMap<&str, bool>>) {
-        let mut truth_table = HashMap::new();
-        let vars = Vec::from_iter(formula.used_vars().into_iter());
-
-        fn valuate_next_var<'a: 'b, 'b>(
-            formula: &(impl Evaluable + UsedVars),
-            truth_table: &'b mut HashMap<&'a str, bool>,
-            remaining_vars: &[&'a String],
-        ) -> Option<()> {
-            if let Some((next_var, remaining_vars)) = remaining_vars.split_first() {
-                truth_table.insert(next_var, true);
-                if let Some(satisfying_valuation) =
-                    valuate_next_var(formula, truth_table, remaining_vars)
-                {
-                    return Some(satisfying_valuation);
-                }
-                truth_table.insert(next_var, false);
-                valuate_next_var(formula, truth_table, remaining_vars)
-            } else {
-                formula.evaluate(truth_table).unwrap().then_some(())
-            }
-        }
-
-        match valuate_next_var(formula, &mut truth_table, &vars) {
-            Some(_) => (SolverJudgement::Satisfiable, Some(truth_table.clone())),
-            None => (SolverJudgement::Unsatisfiable, None),
-        }
-    }
-
     pub(crate) fn solve_by_dp(mut cnf: CNF) -> SolverJudgement {
         loop {
             let mut apply_1_5_again = true;
@@ -410,11 +376,44 @@ pub(crate) mod tests {
         propositional::{
             cnf::{CNFClause, Literal, CNF},
             nnf::NNF,
-            proposition::Proposition,
+            proposition::{Evaluable, Proposition, UsedVars},
         },
     };
 
     use super::*;
+
+    impl SatSolver {
+        pub(crate) fn solve_by_truth_tables(
+            formula: &(impl Evaluable + UsedVars),
+        ) -> (SolverJudgement, Option<HashMap<&str, bool>>) {
+            let mut truth_table = HashMap::new();
+            let vars = Vec::from_iter(formula.used_vars().into_iter());
+
+            fn valuate_next_var<'a: 'b, 'b>(
+                formula: &(impl Evaluable + UsedVars),
+                truth_table: &'b mut HashMap<&'a str, bool>,
+                remaining_vars: &[&'a String],
+            ) -> Option<()> {
+                if let Some((next_var, remaining_vars)) = remaining_vars.split_first() {
+                    truth_table.insert(next_var, true);
+                    if let Some(satisfying_valuation) =
+                        valuate_next_var(formula, truth_table, remaining_vars)
+                    {
+                        return Some(satisfying_valuation);
+                    }
+                    truth_table.insert(next_var, false);
+                    valuate_next_var(formula, truth_table, remaining_vars)
+                } else {
+                    formula.evaluate(truth_table).unwrap().then_some(())
+                }
+            }
+
+            match valuate_next_var(formula, &mut truth_table, &vars) {
+                Some(_) => (SolverJudgement::Satisfiable, Some(truth_table.clone())),
+                None => (SolverJudgement::Unsatisfiable, None),
+            }
+        }
+    }
 
     #[test]
     fn test_literal_order() {
@@ -707,9 +706,6 @@ pub(crate) mod tests {
     #[test]
     fn test_truth_tables() {
         init_logger();
-        // let tests: &[&dyn (Evaluable + UsedVars)] = &[
-        //     &NNF::Instant(Instant::F),
-        // ];
         let trivial_unsat = NNF::Instant(Instant::F).propagate_constants();
         let trivial_sat = NNF::Instant(Instant::T).propagate_constants();
         assert_eq!(

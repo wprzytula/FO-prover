@@ -5,11 +5,8 @@ extern crate quickcheck;
 extern crate quickcheck_macros;
 
 use anyhow::Result;
-use first_order::formula::Instant;
 use first_order::parser::Parser;
-use propositional::cnf::CNF;
-use propositional::nnf::NNF;
-use propositional::sat_solver::SatSolver;
+use log::info;
 
 use crate::first_order::decider::TautologyDecider;
 
@@ -33,10 +30,6 @@ fn main() -> Result<()> {
     let is_tautology = TautologyDecider::is_tautology(formula);
     print!("{}", is_tautology as u8);
 
-    // Just to silence "unused":
-    let cnf = CNF::ECNF(NNF::Instant(Instant::F).propagate_constants());
-    SatSolver::solve_by_truth_tables(&cnf);
-    SatSolver::solve_by_dp(cnf);
     Ok(())
 }
 
