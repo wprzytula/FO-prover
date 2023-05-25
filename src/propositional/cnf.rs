@@ -24,6 +24,10 @@ impl CNF {
         Self(Vec::new())
     }
 
+    pub(crate) fn len_clauses(&self) -> usize {
+        self.0.len()
+    }
+
     pub(crate) fn append_clauses(&mut self, mut other: CNF) {
         self.0.append(&mut other.0)
     }
