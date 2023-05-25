@@ -18,7 +18,7 @@ type Arity = usize;
 
 #[derive(Debug)]
 pub(crate) struct Signature {
-    per_arity: HashMap<Arity, HashSet<String>>,
+    pub(crate) per_arity: HashMap<Arity, HashSet<String>>,
 }
 
 impl Term {
@@ -299,6 +299,36 @@ pub(crate) struct GroundTerm {
     fun_name: String,
     ground_terms: Vec<GroundTerm>,
 }
+
+pub(crate) fn display_term_name_with_terms(
+    f: &mut std::fmt::Formatter<'_>,
+    name: &str,
+    terms: &[impl Display],
+) -> std::fmt::Result {
+    f.write_str(name)?;
+    let mut iter = terms.iter();
+    if let Some(term) = iter.next() {
+        f.write_char('(')?;
+        write!(f, "{}", term)?;
+        for term in iter {
+            f.write_str(", ")?;
+            write!(f, "{}", term)?;
+        }
+        f.write_char(')')?
+    }
+    Ok(())
+}
+
+pub(crate) struct TermDisplayer<'a, D: Display> {
+    pub(crate) name: &'a str,
+    pub(crate) terms: &'a [D],
+}
+impl<D: Display> Display for TermDisplayer<'_, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        display_term_name_with_terms(f, self.name, self.terms)
+    }
+}
+
 impl GroundTerm {
     fn constant(name: String) -> Self {
         Self {
@@ -306,30 +336,11 @@ impl GroundTerm {
             ground_terms: Vec::new(),
         }
     }
-
-    fn display_name_with_ground_terms(
-        f: &mut std::fmt::Formatter<'_>,
-        name: &str,
-        terms: &[impl Display],
-    ) -> std::fmt::Result {
-        f.write_str(name)?;
-        let mut iter = terms.iter();
-        if let Some(term) = iter.next() {
-            f.write_char('(')?;
-            write!(f, "{}", term)?;
-            for term in iter {
-                f.write_str(", ")?;
-                write!(f, "{}", term)?;
-            }
-            f.write_char(')')?
-        }
-        Ok(())
-    }
 }
 
 impl Display for GroundTerm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Self::display_name_with_ground_terms(f, &self.fun_name, &self.ground_terms)
+        display_term_name_with_terms(f, &self.fun_name, &self.ground_terms)
     }
 }
 
@@ -362,7 +373,7 @@ impl GroundRel<'_> {
 
 impl Display for GroundRel<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        GroundTerm::display_name_with_ground_terms(f, self.name, &self.ground_terms)
+        display_term_name_with_terms(f, self.name, &self.ground_terms)
     }
 }
 
