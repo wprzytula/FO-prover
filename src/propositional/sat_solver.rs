@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use itertools::Itertools;
 use log::{debug, trace};
 
 use super::cnf::{CNFClause, Literal, CNF};
@@ -184,6 +185,7 @@ impl CNF {
         // We want to choose literals with min_literal(max_clause(clause_len)).
         let (p, _min_max_len_clause) = self
             .all_literals()
+            .unique()
             .map(|p| {
                 let max_len_clause = self
                     .0
