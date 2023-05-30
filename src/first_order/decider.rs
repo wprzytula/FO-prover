@@ -95,8 +95,8 @@ impl TautologyDecider {
                     "Grounded formula\n{}, yielding\n{}",
                     &skolemised, &grounded_formula
                 );
-                // let grounded_cnf = CNF::equivalent(&grounded_formula);
-                let grounded_cnf = CNF::ECNF(grounded_formula);
+                let grounded_cnf = CNF::equivalent(&grounded_formula);
+                // let grounded_cnf = CNF::ECNF(grounded_formula);
                 offending_conjunction.append_clauses(grounded_cnf);
                 // debug!("Conjunction: {}", &offending_conjunction);
 
