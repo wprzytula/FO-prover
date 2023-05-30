@@ -166,7 +166,10 @@ impl CNF {
                 let mut prev = iter.next().unwrap();
                 for literal in iter {
                     if literal.is_opposite(prev) {
-                        debug!("Found contradicting single literals: {} and {}", prev, literal);
+                        debug!(
+                            "Found contradicting single literals: {} and {}",
+                            prev, literal
+                        );
                         // The formula is unsatisfiable, so return a trivial such.
                         self.0.clear();
                         self.0.push(CNFClause(vec![]));

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fmt::{Display, Write},
     hash::Hash,
 };
@@ -207,7 +207,10 @@ impl CNF {
     pub(crate) fn ECNF(propagated: NNFPropagated) -> Self {
         let mut vars = HashSet::from_iter(propagated.vars().into_iter().map(ToOwned::to_owned));
 
-        debug!("Building ECNF for {}\n which has vars {:?}", &propagated, &vars);
+        debug!(
+            "Building ECNF for {}\n which has vars {:?}",
+            &propagated, &vars
+        );
 
         fn include_subformula<'a>(
             ecnf: &mut Vec<CNFClause>,
@@ -326,6 +329,54 @@ impl Evaluable for CNFClause {
             .iter()
             .map(|literal| literal.evaluate(valuation))
             .try_fold(false, |acc, res| res.map(|val| acc || val))
+    }
+}
+
+pub(crate) struct CNFToPython<'a>(pub(crate) &'a CNF);
+impl Display for CNFToPython<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let vars_mapping = {
+            let mut next_int = 1;
+            let mut mapping = HashMap::new();
+            for clause in self.0 .0.iter() {
+                for literal in clause.0.iter() {
+                    if !mapping.contains_key(literal.var()) {
+                        mapping.insert(literal.var(), next_int);
+                        next_int += 1;
+                    }
+                }
+            }
+            mapping
+        };
+
+        writeln!(f, "[")?;
+        let mut first_clause = true;
+        for clause in self.0 .0.iter() {
+            if !first_clause {
+                write!(f, ",\n")?;
+            } else {
+                first_clause = false;
+            }
+            write!(f, "[")?;
+
+            let mut first_literal = true;
+            for literal in clause.0.iter() {
+                if !first_literal {
+                    write!(f, ", ")?;
+                } else {
+                    first_literal = false;
+                }
+                if let Literal::Neg(_) = literal {
+                    f.write_char('-')?;
+                }
+                write!(f, "{}", vars_mapping.get(literal.var()).unwrap())?;
+            }
+
+            write!(f, "]")?;
+        }
+        writeln!(f, "\n]")?;
+
+        Ok(())
     }
 }
 
