@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use log::{debug, trace};
 
@@ -18,95 +18,12 @@ impl CNFClause {
     // Removes duplicate literals as a side effect.
     // Returns whether the clause is a tautology (contains both negative and positive
     // literal of same variable) and hence can be removed.
-    fn remove_duplicate_literals_and_check_if_tautology(&mut self) -> bool {
-        self.sort();
-        let literals_before = self.0.len();
-        let mut nubbed = Vec::new();
-        let mut last_pos: Option<String> = None;
-        let mut last_neg: Option<String> = None;
-
-        fn found_tautology(
-            new: &Literal,
-            last_pos: &Option<String>,
-            last_neg: &Option<String>,
-        ) -> bool {
-            match new {
-                Literal::Pos(s) => Some(s) == last_neg.as_ref(),
-                Literal::Neg(s) => Some(s) == last_pos.as_ref(),
-            }
-        }
-
-        fn should_flush(
-            new: &String,
-            last_pos: &Option<String>,
-            last_neg: &Option<String>,
-        ) -> bool {
-            for old in [last_pos, last_neg].into_iter().flatten() {
-                assert!(old <= new);
-                if old < new {
-                    return true;
-                }
-            }
-            false
-        }
-
-        fn flush(
-            nubbed: &mut Vec<Literal>,
-            last_pos: &mut Option<String>,
-            last_neg: &mut Option<String>,
-        ) {
-            match (last_pos.take(), last_neg.take()) {
-                (None, None) => (),
-                (None, Some(neg)) => nubbed.push(Literal::Neg(neg)),
-                (Some(pos), None) => nubbed.push(Literal::Pos(pos)),
-                (Some(pos), Some(neg)) => match Ord::cmp(&pos, &neg) {
-                    std::cmp::Ordering::Equal => {
-                        unreachable!("This case should have been handled in found_tautology()")
-                    }
-                    std::cmp::Ordering::Less => {
-                        nubbed.push(Literal::Pos(pos));
-                        nubbed.push(Literal::Neg(neg));
-                    }
-                    std::cmp::Ordering::Greater => {
-                        nubbed.push(Literal::Neg(neg));
-                        nubbed.push(Literal::Pos(pos));
-                    }
-                },
-            }
-        }
-
-        for literal in self.0.drain(..) {
-            if found_tautology(&literal, &last_pos, &last_neg) {
-                trace!("Found tautology of literal {}", &literal);
-                return true;
-            }
-            let var = literal.var();
-            if should_flush(var, &last_pos, &last_neg) {
-                flush(&mut nubbed, &mut last_pos, &mut last_neg);
-            }
-            match literal {
-                Literal::Pos(s) => {
-                    if last_pos.is_none() {
-                        last_pos = Some(s);
-                    }
-                }
-                Literal::Neg(s) => {
-                    if last_neg.is_none() {
-                        last_neg = Some(s);
-                    }
-                }
-            }
-        }
-        flush(&mut nubbed, &mut last_pos, &mut last_neg);
-        std::mem::swap(&mut nubbed, &mut self.0);
-
-        let literals_after = self.0.len();
-        assert!(literals_after <= literals_before);
-        trace!(
-            "Removed {} literals from the clause",
-            literals_before - literals_after
-        );
-        false
+    fn check_if_tautology(&mut self) -> bool {
+        self.0
+            .iter()
+            .filter(|literal| matches!(literal, Literal::Pos(_)))
+            .find(|literal| self.0.contains(&Literal::Neg(literal.var().clone())))
+            .is_some()
     }
 }
 
@@ -125,8 +42,7 @@ impl CNF {
     /// Removes tautological clauses.
     pub(crate) fn remove_tautologies(&mut self) -> bool {
         let clauses_before = self.0.len();
-        self.0
-            .retain_mut(|clause| !clause.remove_duplicate_literals_and_check_if_tautology());
+        self.0.retain_mut(|clause| !clause.check_if_tautology());
         let clauses_after = self.0.len();
         debug!(
             "Clauses before: {}, after: {} (removed {})",
@@ -172,7 +88,7 @@ impl CNF {
                         );
                         // The formula is unsatisfiable, so return a trivial such.
                         self.0.clear();
-                        self.0.push(CNFClause(vec![]));
+                        self.0.push(CNFClause(HashSet::new()));
                         return applied;
                     }
                     prev = literal;
@@ -329,7 +245,7 @@ impl CNF {
 
         self.0.extend(poses.iter().flat_map(|clause_with_p_pos| {
             negs.iter().map(|clause_with_p_neg| {
-                CNFClause(Vec::from_iter(
+                CNFClause(HashSet::from_iter(
                     clause_with_p_pos
                         .0
                         .iter()
@@ -341,7 +257,7 @@ impl CNF {
     }
 
     fn with_explicit_literal(mut self, literal: Literal) -> Self {
-        self.0.push(CNFClause(vec![literal]));
+        self.0.push(CNFClause(HashSet::from_iter([literal])));
         self
     }
 }
@@ -484,9 +400,8 @@ pub(crate) mod tests {
             ],
         )];
         for (test, expected) in tests {
-            let mut clause = CNFClause(test);
-            let expected = CNFClause(expected);
-            clause.sort();
+            let clause = CNFClause(test.into_iter().collect());
+            let expected = CNFClause(expected.into_iter().collect());
             assert_eq!(clause, expected);
         }
     }
@@ -523,11 +438,11 @@ pub(crate) mod tests {
             ),
         ];
         for (test, expected) in tests {
-            let mut clause = CNFClause(test);
-            let tautology = clause.remove_duplicate_literals_and_check_if_tautology();
+            let mut clause = CNFClause(test.into_iter().collect());
+            let tautology = clause.check_if_tautology();
             assert_eq!(tautology, expected.is_none());
             if let Some(expected_clause) = expected {
-                let expected = CNFClause(expected_clause);
+                let expected = CNFClause(expected_clause.into_iter().collect());
                 assert_eq!(clause, expected);
             }
         }
@@ -540,82 +455,82 @@ pub(crate) mod tests {
             (
                 // contradictory one
                 vec![
-                    CNFClause(vec![Literal::Pos("x".to_owned())]),
-                    CNFClause(vec![
+                    CNFClause(HashSet::from_iter([Literal::Pos("x".to_owned())])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("x".to_owned()),
                         Literal::Pos("h".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("x".to_owned()),
                         Literal::Pos("y".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("z".to_owned()),
                         Literal::Neg("y".to_owned()),
                         Literal::Neg("x".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("z".to_owned()),
                         Literal::Pos("w".to_owned()),
                         Literal::Neg("g".to_owned()),
-                    ]),
-                    CNFClause(vec![Literal::Pos("z".to_owned())]),
-                    CNFClause(vec![Literal::Pos("z".to_owned())]),
+                    ])),
+                    CNFClause(HashSet::from_iter([Literal::Pos("z".to_owned())])),
+                    CNFClause(HashSet::from_iter([Literal::Pos("z".to_owned())])),
                 ],
-                vec![CNFClause(vec![])],
+                vec![CNFClause(HashSet::new())],
             ),
             (
                 // All the clauses will disappear
                 vec![
-                    CNFClause(vec![Literal::Pos("x".to_owned())]),
-                    CNFClause(vec![
+                    CNFClause(HashSet::from_iter([Literal::Pos("x".to_owned())])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("x".to_owned()),
                         Literal::Pos("h".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("x".to_owned()),
                         Literal::Pos("y".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("z".to_owned()),
                         Literal::Neg("y".to_owned()),
                         Literal::Neg("x".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("z".to_owned()),
                         Literal::Pos("w".to_owned()),
                         Literal::Neg("y".to_owned()),
-                    ]),
+                    ])),
                 ],
                 vec![],
             ),
             (
                 vec![
-                    CNFClause(vec![Literal::Pos("x".to_owned())]),
-                    CNFClause(vec![
+                    CNFClause(HashSet::from_iter([Literal::Pos("x".to_owned())])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("x".to_owned()),
                         Literal::Pos("h".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("x".to_owned()),
                         Literal::Pos("y".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("z".to_owned()),
                         Literal::Neg("y".to_owned()),
                         Literal::Neg("x".to_owned()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("z".to_owned()),
                         Literal::Pos("w".to_owned()),
                         Literal::Pos("g".to_owned()),
                         Literal::Neg("y".to_owned()),
-                    ]),
+                    ])),
                 ],
-                vec![CNFClause(vec![
+                vec![CNFClause(HashSet::from_iter([
                     Literal::Pos("w".to_owned()),
                     Literal::Pos("g".to_owned()),
-                ])],
+                ]))],
             ),
         ];
         for (test, expected) in tests {
@@ -655,28 +570,28 @@ pub(crate) mod tests {
         init_logger();
         // (p \/ r1), (p \/ ~r2), (~r1 \/ ~r4 \/ r5), (r2 \/ r4 \/ ~r5), (~p \/ r4)
         let cnf = CNF(vec![
-            CNFClause(vec![
+            CNFClause(HashSet::from_iter([
                 Literal::Pos("p".to_owned()),
                 Literal::Pos("r1".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("r2".to_owned()),
                 Literal::Pos("p".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("r1".to_owned()),
                 Literal::Neg("r4".to_owned()),
                 Literal::Pos("r5".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Pos("r2".to_owned()),
                 Literal::Pos("r4".to_owned()),
                 Literal::Neg("r5".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("p".to_owned()),
                 Literal::Pos("r4".to_owned()),
-            ]),
+            ])),
         ]);
         assert_eq!(cnf.choose_var_for_resolution(), "p");
     }
@@ -686,64 +601,64 @@ pub(crate) mod tests {
         init_logger();
         // (p \/ r1), (p \/ ~r2), (p \/ r3), (~p \/ ~q1), (~p \/ q2), rem
         let mut cnf = CNF(vec![
-            CNFClause(vec![
+            CNFClause(HashSet::from_iter([
                 Literal::Pos("p".to_owned()),
                 Literal::Pos("r1".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("r2".to_owned()),
                 Literal::Pos("p".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("x".to_owned()),
                 Literal::Neg("y".to_owned()),
                 Literal::Neg("z".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("p".to_owned()),
                 Literal::Neg("q1".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Pos("p".to_owned()),
                 Literal::Pos("r3".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("p".to_owned()),
                 Literal::Pos("q2".to_owned()),
-            ]),
+            ])),
         ]);
 
         // rem, (r1 \/ ~q1), (r1 \/ q2), (~r2 \/ ~q1), (~r2,\/ q2), (r3 \/ ~q1), (r3,\/ q2)
         let expected = CNF(vec![
-            CNFClause(vec![
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("x".to_owned()),
                 Literal::Neg("y".to_owned()),
                 Literal::Neg("z".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Pos("r1".to_owned()),
                 Literal::Neg("q1".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Pos("r1".to_owned()),
                 Literal::Pos("q2".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("r2".to_owned()),
                 Literal::Neg("q1".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Neg("r2".to_owned()),
                 Literal::Pos("q2".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Pos("r3".to_owned()),
                 Literal::Neg("q1".to_owned()),
-            ]),
-            CNFClause(vec![
+            ])),
+            CNFClause(HashSet::from_iter([
                 Literal::Pos("r3".to_owned()),
                 Literal::Pos("q2".to_owned()),
-            ]),
+            ])),
         ]);
 
         cnf.resolve("p");
@@ -797,143 +712,143 @@ pub(crate) mod tests {
         let tests = [
             (
                 CNF(vec![
-                    CNFClause(vec![
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("x".to_string()),
                         Literal::Pos("y".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("x".to_string()),
                         Literal::Pos("z".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("y".to_string()),
                         Literal::Neg("z".to_string()),
-                    ]),
+                    ])),
                 ]),
                 SolverJudgement::Satisfiable,
             ),
             (
                 CNF(vec![
-                    CNFClause(vec![
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("x".to_string()),
                         Literal::Pos("y".to_string()),
                         Literal::Neg("z".to_string()),
                         Literal::Neg("w".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("x".to_string()),
                         Literal::Neg("y".to_string()),
                         Literal::Pos("z".to_string()),
                         Literal::Neg("w".to_string()),
                         Literal::Pos("v".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("x".to_string()),
                         Literal::Pos("y".to_string()),
                         Literal::Neg("v".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("x".to_string()),
                         Literal::Neg("y".to_string()),
                         Literal::Neg("z".to_string()),
                         Literal::Neg("w".to_string()),
                         Literal::Pos("v".to_string()),
                         Literal::Pos("u".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("x".to_string()),
                         Literal::Neg("y".to_string()),
                         Literal::Pos("z".to_string()),
                         Literal::Neg("u".to_string()),
                         Literal::Pos("v".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("x".to_string()),
                         Literal::Pos("z".to_string()),
                         Literal::Neg("w".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("v".to_string()),
                         Literal::Pos("y".to_string()),
                         Literal::Neg("u".to_string()),
                         Literal::Neg("z".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("v".to_string()),
                         Literal::Neg("w".to_string()),
                         Literal::Pos("z".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("x".to_string()),
                         Literal::Pos("u".to_string()),
                         Literal::Pos("v".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("y".to_string()),
                         Literal::Pos("w".to_string()),
-                    ]),
+                    ])),
                 ]),
                 SolverJudgement::Satisfiable,
             ),
             (
                 CNF(vec![
-                    CNFClause(vec![
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("C1".to_string()),
                         Literal::Pos("C2".to_string()),
                         Literal::Pos("C3".to_string()),
                         Literal::Pos("C4".to_string()),
                         Literal::Pos("C5".to_string()),
                         Literal::Pos("C6".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("C1".to_string()),
                         Literal::Neg("C2".to_string()),
                         Literal::Pos("C3".to_string()),
                         Literal::Pos("C4".to_string()),
                         Literal::Pos("C5".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("C2".to_string()),
                         Literal::Neg("C3".to_string()),
                         Literal::Pos("C4".to_string()),
                         Literal::Pos("C6".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("C3".to_string()),
                         Literal::Neg("C4".to_string()),
                         Literal::Pos("C5".to_string()),
                         Literal::Pos("C6".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("C1".to_string()),
                         Literal::Pos("C2".to_string()),
                         Literal::Pos("C4".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("C2".to_string()),
                         Literal::Pos("C3".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("C4".to_string()),
                         Literal::Neg("C5".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("C2".to_string()),
                         Literal::Neg("C3".to_string()),
                         Literal::Pos("C4".to_string()),
                         Literal::Pos("C5".to_string()),
                         Literal::Neg("C6".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Pos("C1".to_string()),
                         Literal::Neg("C3".to_string()),
                         Literal::Pos("C4".to_string()),
                         Literal::Pos("C5".to_string()),
-                    ]),
-                    CNFClause(vec![
+                    ])),
+                    CNFClause(HashSet::from_iter([
                         Literal::Neg("C4".to_string()),
                         Literal::Pos("C6".to_string()),
-                    ]),
+                    ])),
                 ]),
                 SolverJudgement::Satisfiable,
             ),

@@ -53,7 +53,7 @@ impl Display for CNF {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
-pub(crate) struct CNFClause(pub(crate) Vec<Literal>);
+pub(crate) struct CNFClause(pub(crate) HashSet<Literal>);
 
 impl Display for CNFClause {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -154,10 +154,12 @@ impl CNF {
     pub(crate) fn equivalent(propagated: &NNFPropagated) -> Self {
         fn rec(nnf: &NNFPropagatedInner) -> Vec<CNFClause> {
             match nnf {
-                NNFPropagatedInner::Var(kind, s) => vec![CNFClause(vec![match kind {
-                    NNFVarKind::Pos => Literal::Pos(s.clone()),
-                    NNFVarKind::Neg => Literal::Neg(s.clone()),
-                }])],
+                NNFPropagatedInner::Var(kind, s) => {
+                    vec![CNFClause(HashSet::from_iter([match kind {
+                        NNFVarKind::Pos => Literal::Pos(s.clone()),
+                        NNFVarKind::Neg => Literal::Neg(s.clone()),
+                    }]))]
+                }
                 NNFPropagatedInner::LogOp { kind, phi, psi } => {
                     let phi_vec = rec(phi);
                     let psi_vec = rec(psi);
@@ -179,7 +181,7 @@ impl CNF {
                                             .iter()
                                             .chain(psi_clause.0.iter())
                                             .cloned()
-                                            .collect::<Vec<_>>(),
+                                            .collect::<HashSet<_>>(),
                                     )
                                 })
                             })
@@ -196,7 +198,7 @@ impl CNF {
                 }
                 Instant::F => {
                     // Trivial UNSAT CNF
-                    CNF(vec![CNFClause(vec![])])
+                    CNF(vec![CNFClause(HashSet::new())])
                 }
             },
             NNFPropagated::Inner(ref inner) => CNF(rec(inner)),
@@ -256,7 +258,7 @@ impl CNF {
                 }
                 Instant::F => {
                     // Trivial UNSAT CNF
-                    CNF(vec![CNFClause(vec![])])
+                    CNF(vec![CNFClause(HashSet::new())])
                 }
             },
             NNFPropagated::Inner(inner) => {
@@ -264,7 +266,7 @@ impl CNF {
                 let vars_before = vars.len();
 
                 let theta = include_subformula(&mut ecnf, &inner, &mut vars);
-                ecnf.push(CNFClause(vec![Literal::Pos(theta)]));
+                ecnf.push(CNFClause(HashSet::from_iter([Literal::Pos(theta)])));
 
                 let vars_after = vars.len();
                 debug!(
@@ -307,16 +309,18 @@ impl Evaluable for CNF {
 }
 
 impl CNFClause {
-    pub(crate) fn sort(&mut self) {
-        self.0.sort_unstable();
-    }
+    // pub(crate) fn sort(&mut self) {
+    //     self.0.sort_unstable();
+    // }
 
     pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
     pub(crate) fn one_literal_clause(&self) -> Option<&Literal> {
-        (self.0.len() == 1).then(|| &self.0[0])
+        let mut iter = self.0.iter();
+        let one = iter.next()?;
+        iter.next().is_none().then_some(one)
     }
 }
 
@@ -412,7 +416,7 @@ mod tests {
     impl Arbitrary for CNFClause {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             let clause = loop {
-                let clause: Vec<Literal> = Arbitrary::arbitrary(g);
+                let clause: HashSet<Literal> = Arbitrary::arbitrary(g);
                 if clause.len() < 10 {
                     break clause;
                 }
