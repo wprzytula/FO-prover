@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use log::{debug, info};
 
@@ -89,7 +89,7 @@ impl TautologyDecider {
             terms.push(herbrand_term);
             loop {
                 selector.extract_mapping(&mut var_to_term, vars, &terms);
-                // debug!("Extracted mapping: {:#?}", &var_to_term);
+                info!("Extracted mapping: {}", MappingDisplay(&var_to_term));
                 let grounded_formula = skolemised.ground(&var_to_term);
                 debug!(
                     "Grounded formula\n{}, yielding\n{}",
@@ -172,15 +172,22 @@ impl Selector {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::Selector;
+struct DebugWithDisplay<'a, D: Display>(&'a D);
+impl<D: Display> std::fmt::Debug for DebugWithDisplay<'_, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <D as Display>::fmt(self.0, f)
+    }
+}
 
-    #[test]
-    fn selector() {
-        let vars = vec!["x", "y", "z"];
-        let mut selector = Selector::new_for_n_vars(vars.len());
-        let herbrands_terms = vec![];
-        selector.next_config(&herbrands_terms);
+struct MappingDisplay<'a, D1: Display, D2: Display>(&'a HashMap<D1, D2>);
+impl<D1: Display, D2: Display> Display for MappingDisplay<'_, D1, D2> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map()
+            .entries(
+                self.0
+                    .iter()
+                    .map(|(k, v)| (DebugWithDisplay(k), DebugWithDisplay(v))),
+            )
+            .finish()
     }
 }
