@@ -8,7 +8,7 @@ use crate::{
         cnf::CNF,
         sat_solver::{
             SatSolver,
-            SolverJudgement::{Satisfiable, Unsatisfiable},
+            SolverJudgement::{self, Satisfiable, Unsatisfiable},
         },
     },
 };
@@ -77,46 +77,45 @@ impl TautologyDecider {
 
         let mut offending_conjunction = CNF::empty_satisfiable();
 
-        let mut terms = Vec::new();
-
         let mut selector = Selector::new_for_n_vars(vars.len());
         let mut var_to_term = HashMap::new();
 
-        for herbrand_term in herbrands_universe {
-            info!(
-                "Extending term set with Herbrand's term: {}",
-                &herbrand_term
-            );
-            terms.push(herbrand_term);
-            loop {
-                selector.extract_mapping(&mut var_to_term, vars, &terms);
-                info!("Extracted mapping: {}", MappingDisplay(&var_to_term));
-                let grounded_formula = skolemised.ground(&var_to_term);
-                debug!(
-                    "Grounded formula\n{}, yielding\n{}",
-                    &skolemised, &grounded_formula
+        if is_universe_finite {
+            // Instantly add all terms to our set.
+            let terms = herbrands_universe.collect();
+            info!("Term set is instantly full with: {:?}", &terms);
+            match Self::try_find_unsatisfiable_with_ground_terms(
+                vars,
+                &skolemised,
+                &terms,
+                &mut selector,
+                &mut var_to_term,
+                &mut offending_conjunction,
+            ) {
+                Satisfiable => (),
+                Unsatisfiable => return true,
+            }
+        } else {
+            let mut terms = Vec::new();
+
+            // let mut backoff = 1;
+            for herbrand_term in herbrands_universe {
+                info!(
+                    "Extending term set with Herbrand's term: {}",
+                    &herbrand_term
                 );
-                let grounded_cnf = CNF::equivalent(&grounded_formula);
-                // let grounded_cnf = CNF::ECNF(grounded_formula);
-                offending_conjunction.append_clauses(grounded_cnf);
-                // debug!("Conjunction: {}", &offending_conjunction);
+                terms.push(herbrand_term);
 
-                match SatSolver::solve_by_dpll(offending_conjunction.clone()) {
+                match Self::try_find_unsatisfiable_with_ground_terms(
+                    vars,
+                    &skolemised,
+                    &terms,
+                    &mut selector,
+                    &mut var_to_term,
+                    &mut offending_conjunction,
+                ) {
                     Satisfiable => (),
-                    Unsatisfiable => {
-                        info!(
-                            "Found unsatisfiable conjunction (len={}). Concluding tautology.",
-                            offending_conjunction.len_clauses(),
-                        );
-                        // debug!("Offending conjunction: {:#?}", &offending_conjunction);
-
-                        return true;
-                    }
-                }
-
-                // move to next configuration or break if depleted
-                if selector.next_config(&terms).is_none() {
-                    break;
+                    Unsatisfiable => return true,
                 }
             }
         }
@@ -124,6 +123,47 @@ impl TautologyDecider {
         // If the universe is finite and depleted, this means that the formula is not a tautology.
         info!("The Herbrand's universe was depleted, so we conclude that the formula is not a tautology");
         false
+    }
+
+    fn try_find_unsatisfiable_with_ground_terms<'s>(
+        vars: &'s [String],
+        skolemised: &SkolemisedFormula,
+        terms: &Vec<GroundTerm>,
+        selector: &mut Selector,
+        var_to_term: &mut HashMap<&'s str, GroundTerm>,
+        offending_conjunction: &mut CNF,
+    ) -> SolverJudgement {
+        loop {
+            selector.extract_mapping(var_to_term, vars, &terms);
+            info!("Extracted mapping: {}", MappingDisplay(&var_to_term));
+            let grounded_formula = skolemised.ground(&var_to_term);
+            debug!(
+                "Grounded formula\n{}, yielding\n{}",
+                &skolemised, &grounded_formula
+            );
+            let grounded_cnf = CNF::equivalent(&grounded_formula);
+            // let grounded_cnf = CNF::ECNF(grounded_formula);
+            offending_conjunction.append_clauses(grounded_cnf);
+            // debug!("Conjunction: {}", &offending_conjunction);
+
+            match SatSolver::solve_by_dpll(offending_conjunction.clone()) {
+                Satisfiable => (),
+                Unsatisfiable => {
+                    info!(
+                        "Found unsatisfiable conjunction (len={}). Concluding tautology.",
+                        offending_conjunction.len_clauses(),
+                    );
+                    // debug!("Offending conjunction: {:#?}", &offending_conjunction);
+
+                    return SolverJudgement::Unsatisfiable;
+                }
+            }
+
+            // move to next configuration or break if depleted
+            if selector.next_config(&terms).is_none() {
+                return SolverJudgement::Satisfiable;
+            }
+        }
     }
 }
 
@@ -156,7 +196,7 @@ impl Selector {
             }
             if carry_handled {
                 if self.0.contains(&newest_term_idx) {
-                Some(())
+                    Some(())
                 } else {
                     debug!("Skipping already covered case: {:?}", self.0);
                     self.next_config(terms)
