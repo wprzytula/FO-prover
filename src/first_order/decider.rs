@@ -133,6 +133,8 @@ impl Selector {
     }
 
     fn next_config(&mut self, terms: &Vec<GroundTerm>) -> Option<()> {
+        assert!(!terms.is_empty());
+        let newest_term_idx = terms.len() - 1;
         // increment units
         if self.0[0] + 1 < terms.len() {
             self.0[0] += 1;
@@ -152,7 +154,12 @@ impl Selector {
                 }
             }
             if carry_handled {
+                if self.0.contains(&newest_term_idx) {
                 Some(())
+                } else {
+                    debug!("Skipping already covered case: {:?}", self.0);
+                    self.next_config(terms)
+                }
             } else {
                 None
             }
