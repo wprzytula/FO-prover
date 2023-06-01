@@ -89,6 +89,10 @@ impl Signature {
             .flat_map(|(arity, fns)| fns.iter().map(|func| (*arity, func.clone())))
     }
 
+    pub(crate) fn herbrands_universe_is_finite(&self) -> bool {
+        self.per_arity.len() == 1
+    }
+
     pub(crate) fn herbrands_universe(&self) -> impl Iterator<Item = GroundTerm> + '_ {
         HerbrandsUniverseIter::new(self, self.arity_iter()).unique()
     }

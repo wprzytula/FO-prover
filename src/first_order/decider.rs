@@ -59,10 +59,11 @@ impl TautologyDecider {
         // ξ[x̄ 7→ ū1 ] ∧ · · · ∧ ξ[x̄ 7→ ūm ]
         // is unsatisfiable.
 
+        let is_universe_finite = signature.herbrands_universe_is_finite();
         let herbrands_universe = signature.herbrands_universe();
         info!("Signature: {:#?}", signature);
 
-        if signature.per_arity.keys().any(|arity| *arity > 0) {
+        if !is_universe_finite {
             info!(
                 "Signature contains functional symbols, so Herbrand's universe is infinite. \
                    Being non-tautology is not provable."
