@@ -1,4 +1,7 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 use log::{debug, info};
 
@@ -83,7 +86,7 @@ impl TautologyDecider {
         if is_universe_finite {
             // Instantly add all terms to our set.
             let terms = herbrands_universe.collect();
-            info!("Term set is instantly full with: {:?}", &terms);
+            info!("Term set is instantly full with: {}", VecDisplay(&terms));
             match Self::try_find_unsatisfiable_with_ground_terms(
                 vars,
                 &skolemised,
@@ -135,7 +138,7 @@ impl TautologyDecider {
     ) -> SolverJudgement {
         loop {
             selector.extract_mapping(var_to_term, vars, &terms);
-            info!("Extracted mapping: {}", MappingDisplay(&var_to_term));
+            debug!("Extracted mapping: {}", MappingDisplay(&var_to_term));
             let grounded_formula = skolemised.ground(&var_to_term);
             debug!(
                 "Grounded formula\n{}, yielding\n{}",
@@ -224,6 +227,24 @@ struct DebugWithDisplay<'a, D: Display>(&'a D);
 impl<D: Display> std::fmt::Debug for DebugWithDisplay<'_, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         <D as Display>::fmt(self.0, f)
+    }
+}
+
+struct VecDisplay<'a, D: Display>(&'a Vec<D>);
+impl<D: Display> Display for VecDisplay<'_, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list()
+            .entries(self.0.iter().map(|v| DebugWithDisplay(v)))
+            .finish()
+    }
+}
+
+struct SetDisplay<'a, D: Display>(&'a HashSet<D>);
+impl<D: Display> Display for SetDisplay<'_, D> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_set()
+            .entries(self.0.iter().map(|v| DebugWithDisplay(v)))
+            .finish()
     }
 }
 
