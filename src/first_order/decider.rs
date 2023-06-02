@@ -85,8 +85,25 @@ impl TautologyDecider {
 
         if is_universe_finite {
             // Instantly add all terms to our set.
+
             let terms = herbrands_universe.collect();
             info!("Term set is instantly full with: {}", VecDisplay(&terms));
+
+            // Heuristic: instantly add all formulas grounded with only one term.
+            // for term in terms.iter() {
+            //     for var in vars {
+            //         var_to_term.insert(var.as_str(), term.clone());
+            //     }
+            //     let grounded_formula = skolemised.ground(&var_to_term);
+            //     debug!(
+            //         "Grounded formula\n{}, yielding\n{}",
+            //         &skolemised, &grounded_formula
+            //     );
+            //     let grounded_cnf = CNF::equivalent(&grounded_formula);
+            //     // let grounded_cnf = CNF::ECNF(grounded_formula);
+            //     offending_conjunction.append_clauses(grounded_cnf);
+            // }
+
             match Self::try_find_unsatisfiable_with_ground_terms(
                 vars,
                 &skolemised,
