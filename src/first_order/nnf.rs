@@ -217,6 +217,13 @@ impl NNFPropagated {
         }
         vars
     }
+
+    pub(crate) fn miniscope(&mut self) {
+        match self {
+            NNFPropagated::Instant(_) => (),
+            NNFPropagated::Inner(inn) => inn.miniscope(),
+        }
+    }
 }
 
 impl Display for NNFPropagated {
@@ -270,7 +277,37 @@ pub(crate) enum NNFPropagatedInner {
         phi: Box<Self>,
     },
 }
+
+fn fresh_in_terms(terms: &[Term], var: &str) -> bool {
+    for term in terms {
+        let is_fresh = match term {
+            Term::Var(v) => v != var,
+            Term::Fun(_, terms) => fresh_in_terms(terms, var),
+        };
+        if !is_fresh {
+            return false;
+        }
+    }
+    true
+}
+
 impl NNFPropagatedInner {
+    const MOCK: Self = NNFPropagatedInner::Rel {
+        kind: NNFRelKind::Pos,
+        name: String::new(),
+        terms: vec![],
+    };
+
+    fn fresh_in(&self, var: &str) -> bool {
+        match self {
+            NNFPropagatedInner::Rel { terms, .. } => fresh_in_terms(terms, var),
+            NNFPropagatedInner::LogOp { phi, psi, .. } => phi.fresh_in(var) && psi.fresh_in(var),
+            NNFPropagatedInner::Quantified { var: qvar, phi, .. } => {
+                !(var == qvar) && phi.fresh_in(var)
+            }
+        }
+    }
+
     fn free_vars<'a>(&'a self, free: &mut HashSet<String>, captured: &mut HashSet<&'a str>) {
         match self {
             NNFPropagatedInner::LogOp { phi, psi, .. } => {
@@ -306,6 +343,164 @@ impl NNFPropagatedInner {
                     vars.insert(var.clone());
                 }
                 phi.make_vars_unique(vars);
+            }
+        }
+    }
+
+    fn miniscope(&mut self) {
+        match self {
+            NNFPropagatedInner::Rel { .. } => (),
+            NNFPropagatedInner::LogOp { phi, psi, .. } => {
+                phi.miniscope();
+                psi.miniscope();
+            }
+            NNFPropagatedInner::Quantified {
+                kind,
+                var,
+                phi: qphi,
+            } => {
+                qphi.miniscope();
+                if qphi.fresh_in(var) {
+                    // Great, no effort needed here.
+                    *self = std::mem::replace(qphi.as_mut(), Self::MOCK);
+                } else {
+                    match kind {
+                        QuantifierKind::Exists => match qphi.as_mut() {
+                            NNFPropagatedInner::LogOp {
+                                kind: NNFLogOpKind::Or,
+                                phi,
+                                psi,
+                            } => {
+                                *(phi.as_mut()) = {
+                                    let mut phi = NNFPropagatedInner::Quantified {
+                                        kind: *kind,
+                                        var: var.clone(),
+                                        phi: std::mem::replace(phi, Box::new(Self::MOCK)),
+                                    };
+                                    phi.miniscope();
+                                    phi
+                                };
+                                *(psi.as_mut()) = {
+                                    let mut psi = NNFPropagatedInner::Quantified {
+                                        kind: *kind,
+                                        var: var.clone(),
+                                        phi: std::mem::replace(psi, Box::new(Self::MOCK)),
+                                    };
+                                    psi.miniscope();
+                                    psi
+                                };
+                                *self = std::mem::replace(qphi.as_mut(), Self::MOCK);
+                            }
+                            NNFPropagatedInner::LogOp {
+                                kind: NNFLogOpKind::And,
+                                phi,
+                                psi,
+                            } if phi.fresh_in(var) => {
+                                *(psi.as_mut()) = {
+                                    let mut psi = NNFPropagatedInner::Quantified {
+                                        kind: *kind,
+                                        var: var.clone(),
+                                        phi: std::mem::replace(psi, Box::new(Self::MOCK)),
+                                    };
+                                    psi.miniscope();
+                                    psi
+                                };
+                                *self = std::mem::replace(qphi.as_mut(), Self::MOCK);
+                            }
+                            NNFPropagatedInner::LogOp {
+                                kind: NNFLogOpKind::And,
+                                phi,
+                                psi,
+                            } if psi.fresh_in(var) => {
+                                *(phi.as_mut()) = {
+                                    let mut phi = NNFPropagatedInner::Quantified {
+                                        kind: *kind,
+                                        var: var.clone(),
+                                        phi: std::mem::replace(phi, Box::new(Self::MOCK)),
+                                    };
+                                    phi.miniscope();
+                                    phi
+                                };
+                                *self = std::mem::replace(qphi.as_mut(), Self::MOCK);
+                            }
+                            _ => (), // nothing here
+                        },
+                        QuantifierKind::Forall => match qphi.as_mut() {
+                            NNFPropagatedInner::LogOp {
+                                kind: NNFLogOpKind::And,
+                                phi,
+                                psi,
+                            } => {
+                                *(phi.as_mut()) = {
+                                    let mut phi = NNFPropagatedInner::Quantified {
+                                        kind: *kind,
+                                        var: var.clone(),
+                                        phi: std::mem::replace(phi, Box::new(Self::MOCK)),
+                                    };
+                                    phi.miniscope();
+                                    phi
+                                };
+                                *(psi.as_mut()) = {
+                                    let mut psi = NNFPropagatedInner::Quantified {
+                                        kind: *kind,
+                                        var: var.clone(),
+                                        phi: std::mem::replace(psi, Box::new(Self::MOCK)),
+                                    };
+                                    psi.miniscope();
+                                    psi
+                                };
+                                *self = std::mem::replace(qphi.as_mut(), Self::MOCK);
+                            }
+                            NNFPropagatedInner::LogOp {
+                                kind: NNFLogOpKind::Or,
+                                phi,
+                                psi,
+                            } if phi.fresh_in(var) => {
+                                *(psi.as_mut()) = {
+                                    let mut psi = NNFPropagatedInner::Quantified {
+                                        kind: *kind,
+                                        var: var.clone(),
+                                        phi: std::mem::replace(psi, Box::new(Self::MOCK)),
+                                    };
+                                    psi.miniscope();
+                                    psi
+                                };
+                                *self = std::mem::replace(qphi.as_mut(), Self::MOCK);
+                            }
+                            NNFPropagatedInner::LogOp {
+                                kind: NNFLogOpKind::Or,
+                                phi,
+                                psi,
+                            } if psi.fresh_in(var) => {
+                                *(phi.as_mut()) = {
+                                    let mut phi = NNFPropagatedInner::Quantified {
+                                        kind: *kind,
+                                        var: var.clone(),
+                                        phi: std::mem::replace(phi, Box::new(Self::MOCK)),
+                                    };
+                                    phi.miniscope();
+                                    phi
+                                };
+                                *self = std::mem::replace(qphi.as_mut(), Self::MOCK);
+                            }
+                            _ => (), // nothing here
+                        },
+                    }
+                }
+
+                //   (Exists name phi) -> case miniscope phi of
+                //     phi' | name `freshIn` phi' -> phi'
+                //     (Or phi' psi') -> Or (miniscope $ Exists name phi') (miniscope $ Exists name psi')
+                //     (And phi' psi') | name `freshIn` phi' -> And phi' (miniscope $ Exists name psi')
+                //     (And phi' psi') | name `freshIn` psi' -> And (miniscope $ Exists name phi') psi'
+                //     phi' -> Exists name phi'
+
+                //     (Forall name phi) -> case miniscope phi of
+                //     phi' | name `freshIn` phi' -> phi'
+                //     (And phi' psi') -> And (miniscope $ Forall name phi') (miniscope $ Forall name psi')
+                //     (Or phi' psi') | name `freshIn` phi' -> Or phi' (miniscope $ Forall name psi')
+                //     (Or phi' psi') | name `freshIn` psi' -> Or (miniscope $ Forall name phi') psi'
+                //     phi' -> Forall name phi'
             }
         }
     }

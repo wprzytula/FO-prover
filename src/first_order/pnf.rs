@@ -194,8 +194,8 @@ fn skolem_function(var: &str) -> String {
 }
 
 impl NNFPropagated {
-    pub(crate) fn skolemise(self) -> SkolemisedFormula {
-        // TODO: miniscoping
+    pub(crate) fn skolemise(mut self) -> SkolemisedFormula {
+        self.miniscope();
         let mut miniscoped = self;
         let all_vars = miniscoped.make_vars_unique();
         info!("NNFPropagated with vars made unique: {}", &miniscoped);
