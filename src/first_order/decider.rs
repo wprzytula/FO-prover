@@ -26,6 +26,15 @@ impl TautologyDecider {
         // with ξ quantifier-free.
         formula.close_universally();
         info!("Formula closed universally: {}", &formula);
+        if let Some(falsifying_structure) = formula.try_falsify() {
+            // A contrargument has been found: a structure that makes the formula unsatisfied.
+            info!(
+                "Found falsifying structure for the formula. The following rels are to be full, remaining empty: {}",
+                VecDisplay(&falsifying_structure)
+            );
+            return false;
+        }
+
         let negated_formula = Formula::not(formula);
         info!("Formula negated: {}", &negated_formula);
         let nnf = negated_formula.into_nnf();

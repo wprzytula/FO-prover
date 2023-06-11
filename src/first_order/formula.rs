@@ -6,6 +6,7 @@ use std::{
 
 use anyhow::{bail, Context};
 use bnf::{ParseTree, ParseTreeNode};
+use itertools::Itertools;
 
 use crate::propositional::proposition::{fresh_var, UsedVars};
 
@@ -332,6 +333,55 @@ impl Formula {
                 var: fresh,
                 phi: Box::new(formula),
             })
+        }
+    }
+
+    pub(crate) fn try_falsify(&self) -> Option<Vec<&str>> {
+        let mut rels = vec![];
+        fn gather_rels<'s>(formula: &'s Formula, rels: &mut Vec<&'s str>) {
+            match formula {
+                Formula::Instant(_) => (),
+                Formula::Rel(Rel { name, .. }) => {
+                    rels.push(name);
+                }
+                Formula::LogOp(LogOp::Not(phi)) => gather_rels(phi, rels),
+                Formula::LogOp(LogOp::Bin(BinLogOp { phi, psi, .. })) => {
+                    gather_rels(&phi, rels);
+                    gather_rels(&psi, rels);
+                }
+                Formula::Quantified(Quantifier { phi, .. }) => gather_rels(phi, rels),
+            }
+        }
+        gather_rels(self, &mut rels);
+
+        for structure in rels.into_iter().powerset() {
+            if !self.eval_with_trivial_rels(&structure) {
+                return Some(structure);
+            }
+        }
+
+        None
+    }
+
+    // Evaluates the formula with:
+    // - rels: full for true, empty for false,
+    // - quantifiers simply passing through the underlying truth value.
+    fn eval_with_trivial_rels(&self, rel_truth: &Vec<&str>) -> bool {
+        match self {
+            Formula::Instant(i) => i.into_bool(),
+            Formula::Rel(Rel { name, .. }) => rel_truth.contains(&name.as_str()),
+            Formula::Quantified(Quantifier { phi, .. }) => phi.eval_with_trivial_rels(rel_truth),
+            Formula::LogOp(LogOp::Not(phi)) => !phi.eval_with_trivial_rels(rel_truth),
+            Formula::LogOp(LogOp::Bin(BinLogOp { kind, phi, psi })) => {
+                let phi_val = phi.eval_with_trivial_rels(rel_truth);
+                let psi_val = psi.eval_with_trivial_rels(rel_truth);
+                match kind {
+                    BinLogOpKind::And => phi_val && psi_val,
+                    BinLogOpKind::Or => phi_val || psi_val,
+                    BinLogOpKind::Implies => !phi_val || psi_val,
+                    BinLogOpKind::Iff => phi_val == psi_val,
+                }
+            }
         }
     }
 }
