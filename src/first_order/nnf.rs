@@ -303,7 +303,7 @@ impl NNFPropagatedInner {
             NNFPropagatedInner::Rel { terms, .. } => fresh_in_terms(terms, var),
             NNFPropagatedInner::LogOp { phi, psi, .. } => phi.fresh_in(var) && psi.fresh_in(var),
             NNFPropagatedInner::Quantified { var: qvar, phi, .. } => {
-                !(var == qvar) && phi.fresh_in(var)
+                var != qvar && phi.fresh_in(var)
             }
         }
     }

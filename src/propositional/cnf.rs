@@ -214,9 +214,9 @@ impl CNF {
             &propagated, &vars
         );
 
-        fn include_subformula<'a>(
+        fn include_subformula(
             ecnf: &mut Vec<CNFClause>,
-            propagated: &'a NNFPropagatedInner,
+            propagated: &NNFPropagatedInner,
             vars: &mut HashSet<String>,
         ) -> String {
             let formula_eq = match propagated {
@@ -357,7 +357,7 @@ impl Display for CNFToPython<'_> {
         let mut first_clause = true;
         for clause in self.0 .0.iter() {
             if !first_clause {
-                write!(f, ",\n")?;
+                writeln!(f, ",")?;
             } else {
                 first_clause = false;
             }

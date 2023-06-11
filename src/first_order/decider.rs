@@ -154,9 +154,9 @@ impl TautologyDecider {
         offending_conjunction: &mut CNF,
     ) -> SolverJudgement {
         loop {
-            selector.extract_mapping(var_to_term, vars, &terms);
-            debug!("Extracted mapping: {}", MappingDisplay(&var_to_term));
-            let grounded_formula = skolemised.ground(&var_to_term);
+            selector.extract_mapping(var_to_term, vars, terms);
+            debug!("Extracted mapping: {}", MappingDisplay(var_to_term));
+            let grounded_formula = skolemised.ground(var_to_term);
             debug!(
                 "Grounded formula\n{}, yielding\n{}",
                 &skolemised, &grounded_formula
@@ -180,7 +180,7 @@ impl TautologyDecider {
             }
 
             // move to next configuration or break if depleted
-            if selector.next_config(&terms).is_none() {
+            if selector.next_config(terms).is_none() {
                 return SolverJudgement::Satisfiable;
             }
         }
