@@ -338,6 +338,8 @@ impl Formula {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::first_order::parser::Parser;
 
@@ -348,6 +350,45 @@ pub(crate) mod tests {
             let parser = Parser::new().unwrap();
             parser.parse(DRINKER_PARADOX).unwrap()
         }
+
+        // Evaluates the formula with:
+        // - rels: full for true, empty for false,
+        // - quantifiers simply passing through the underlying truth value.
+        fn eval(&self, rel_truth: &HashMap<&str, bool>) -> bool {
+            match self {
+                Formula::Instant(i) => i.into_bool(),
+                Formula::Rel(Rel { name, .. }) => *rel_truth
+                    .get(name.as_str())
+                    .unwrap_or_else(|| panic!("Missing truth mapping for rel {}.", name)),
+                Formula::Quantified(Quantifier { phi, .. }) => phi.eval(rel_truth),
+                Formula::LogOp(LogOp::Not(phi)) => !phi.eval(rel_truth),
+                Formula::LogOp(LogOp::Bin(BinLogOp { kind, phi, psi })) => {
+                    let phi_val = phi.eval(rel_truth);
+                    let psi_val = psi.eval(rel_truth);
+                    match kind {
+                        BinLogOpKind::And => phi_val && psi_val,
+                        BinLogOpKind::Or => phi_val || psi_val,
+                        BinLogOpKind::Implies => !phi_val || psi_val,
+                        BinLogOpKind::Iff => phi_val == psi_val,
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_58_contrargument() {
+        let formula_str = r#"Iff (Exists "x" (Forall "y" (Iff (Rel "p" [Var "x"]) (Rel "p" [Var "y"])))) (Iff (Iff (Exists "x" (Rel "q" [Var "x"])) (Forall "y" (Rel "q" [Var "y"]))) (Iff (Exists "x" (Forall "y" (Iff (Rel "q" [Var "x"]) (Rel "q" [Var "y"])))) (Iff (Exists "x" (Rel "q" [Var "x"])) (Forall "y" (Rel "p" [Var "y"])))))"#;
+        let parser = Parser::new().unwrap();
+        let formula = parser.parse(formula_str).unwrap();
+        assert!([true, false]
+            .into_iter()
+            .flat_map(|p_val| [true, false].into_iter().map(move |q_val| (p_val, q_val)))
+            .map(|(p_val, q_val)| {
+                let rel_truth = HashMap::from_iter([("p", p_val), ("q", q_val)]);
+                formula.eval(&rel_truth)
+            })
+            .any(|sat| !sat));
     }
 }
 
