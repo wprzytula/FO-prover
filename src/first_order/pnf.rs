@@ -325,10 +325,7 @@ pub(crate) mod tests {
                     kind: NNFRelKind::Neg,
                     rel: Rel {
                         name: "D".to_owned(),
-                        terms: vec![Term::Fun(
-                            skolem_function("y"),
-                            vec![Term::Var("x".to_owned())],
-                        )],
+                        terms: vec![Term::Fun(skolem_function("y"), vec![])],
                     },
                 }),
             },
